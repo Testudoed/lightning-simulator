@@ -1,0 +1,19 @@
+[Unit]
+Description=Lightning Simulation Service
+After=network.target
+After=bluetooth.target
+After=sound.target
+After=led_service.service
+Wants=led_service.service
+
+[Service]
+ExecStart=/usr/local/bin/lightning-simulator
+Restart=always
+User=rpi
+Group=rpi
+WorkingDirectory=/home/rpi
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse/"
+
+[Install]
+WantedBy=multi-user.target
