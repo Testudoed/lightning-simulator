@@ -7,3 +7,16 @@ from lightning_simulator.__about__ import __version__
 @click.version_option(version=__version__, prog_name="Lightning Simulator")
 def lightning_simulator():
     click.echo("Hello world!")
+
+@lightning_simulator.command
+def test_on():
+    from lightning_simulator.scripts import led_test
+
+    led_test.on()
+
+
+@lightning_simulator.command
+def test_off():
+    from lightning_simulator.scripts import led_test
+
+    led_test.off()
