@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lightning-simulator"
+dynamic = ["version"]
+description = 'RasberryPi Lightning Simulator'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Kyle Roberts", email = "kylearobertsdev@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "click",
+  "rpi_ws281x"
+]
+
+[project.urls]
+Documentation = "https://github.com/Kyle Roberts/lightning-simulator#readme"
+Issues = "https://github.com/Kyle Roberts/lightning-simulator/issues"
+Source = "https://github.com/Kyle Roberts/lightning-simulator"
+
+[project.scripts]
+lightning-simulator = "lightning_simulator.cli:lightning_simulator"
+
+[tool.hatch.version]
+path = "src/lightning_simulator/__about__.py"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/lightning_simulator tests}"
+
+[tool.coverage.run]
+source_pkgs = ["lightning_simulator", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/lightning_simulator/__about__.py",
+]
+
+[tool.coverage.paths]
+lightning_simulator = ["src/lightning_simulator", "*/lightning-simulator/src/lightning_simulator"]
+tests = ["tests", "*/lightning-simulator/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
