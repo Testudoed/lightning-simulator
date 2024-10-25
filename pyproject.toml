@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -38,7 +38,10 @@ Source = "https://github.com/Kyle Roberts/lightning-simulator"
 lightning-simulator = "lightning_simulator.cli:lightning_simulator"
 
 [tool.hatch.version]
-path = "src/lightning_simulator/__about__.py"
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/lightning_simulator/__about__.py"
 
 [tool.hatch.envs.types]
 extra-dependencies = [
