@@ -28,7 +28,7 @@ SOCKET_PATH = "/tmp/led_strip_socket"
 
 # Signal handler for cleanup
 def signal_handler(sig, frame):
-    # Turn off all LEDs on exit
+    set_all_leds(strip, 0, 0, 0)
     strip.show()
     # Remove the socket file
     if os.path.exists(SOCKET_PATH):

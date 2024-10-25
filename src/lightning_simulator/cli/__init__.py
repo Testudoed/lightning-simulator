@@ -10,7 +10,7 @@ def lightning_simulator(ctx: click.Context):
     if ctx.invoked_subcommand is None:
         import lightning_simulator.lightning_simulator as lt
 
-        lt.lightning_flash
+        lt.main()
 
 @lightning_simulator.command
 def test_on():

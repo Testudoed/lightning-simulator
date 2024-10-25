@@ -27,7 +27,8 @@ classifiers = [
 dependencies = [
   "click",
   "rpi_ws281x",
-  "pygame"
+  "pygame",
+  "rpi-lgpio",
 ]
 
 [project.urls]
