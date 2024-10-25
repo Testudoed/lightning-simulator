@@ -43,6 +43,12 @@ led-service = "lightning_simulator.led_service:main"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build]
+include = [
+    "src/lightning_simulator/background_storm.mp3",
+    "src/lightning_simulator/lightning_strike.wav"
+]
+
 [tool.hatch.build.hooks.vcs]
 version-file = "src/lightning_simulator/__about__.py"
 
