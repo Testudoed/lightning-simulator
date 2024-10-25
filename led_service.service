@@ -1,0 +1,12 @@
+[Unit]
+Description=WS2812B LED Control Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /path/to/led_service.py
+Restart=always
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target

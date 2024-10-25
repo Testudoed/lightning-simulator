@@ -26,7 +26,8 @@ classifiers = [
 ]
 dependencies = [
   "click",
-  "rpi_ws281x"
+  "rpi_ws281x",
+  "pygame"
 ]
 
 [project.urls]
@@ -36,6 +37,7 @@ Source = "https://github.com/Kyle Roberts/lightning-simulator"
 
 [project.scripts]
 lightning-simulator = "lightning_simulator.cli:lightning_simulator"
+led-service = "lightning_simulator.led_service:main"
 
 [tool.hatch.version]
 source = "vcs"
