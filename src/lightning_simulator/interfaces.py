@@ -1,6 +1,6 @@
 """Replaceable controller boundaries; all event timestamps use monotonic seconds."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -18,6 +18,9 @@ class Trigger(Protocol):
 
 
 class LEDs(Protocol):
+    count: int
+
+    def pixels(self, colors: Sequence[RGB]) -> None: ...
     def fill(self, color: RGB) -> None: ...
     def clear(self) -> None: ...
 

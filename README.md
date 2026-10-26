@@ -34,6 +34,36 @@ On every process start outputs are inactive and an inactive input is required
 before arming; toggle state is never persisted. Buttons use a stable 50 ms
 software debounce; motion uses a configurable 60 s warmup.
 
+Each lightning strike defaults to a **traveling white head with a fading trail**,
+moving from the last pixel to the first across both strips. Five strikes play per
+sequence. Set `[effect]` options in TOML to adjust the movement:
+
+```toml
+[effect]
+animation = "travel"
+direction = "reverse" # "forward" runs from the first pixel to the last
+travel_seconds = 0.4
+bolt_width = 12
+```
+
+`travel_seconds` is the requested time for one sweep, including its trail leaving
+the scene. Larger values slow it down. `bolt_width` includes the bright head and
+fading trail, capped to the pixel count. Rendering uses overlapping frames so
+every position lights up; hardware throughput can limit the maximum speed.
+The existing `gap_min` / `gap_max` settings control pauses between strikes.
+`flash_min` / `flash_max` apply to the optional `animation = "flash"` effect,
+which illuminates the whole strip simultaneously.
+
+Preview one five-strike sequence on the Pi without a trigger or audio setup:
+
+```console
+.venv/bin/lightning-simulator --config config.example.toml component-test leds --duration 5
+```
+
+The duration is a maximum: the command finishes when the sequence ends and clears
+the LEDs. Increase it when testing slower travel or longer gaps. The standalone
+SPI compatibility spike keeps its diagnostic patterns and full-strip flashes.
+
 Copy [config.example.toml](config.example.toml) and use the global `--config`
 option **before** a subcommand:
 

@@ -33,6 +33,10 @@ class LEDConfig:
 @dataclass(frozen=True)
 class EffectConfig:
     flashes: int = 5
+    animation: str = "travel"
+    direction: str = "reverse"
+    travel_seconds: float = 0.4
+    bolt_width: int = 12
     flash_min: float = 0.05
     flash_max: float = 0.2
     gap_min: float = 0.05
@@ -87,11 +91,16 @@ class Config:
             ("leds.count", self.leds.count, 1, 400),
             ("leds.brightness", self.leds.brightness, 0, 255),
             ("effect.flashes", self.effect.flashes, 1, 100),
+            ("effect.bolt_width", self.effect.bolt_width, 1, 400),
         ):
             if type(value) is not int or not lo <= value <= hi:
                 raise ValueError(f"{name} must be an integer in {lo}..{hi}")
         if self.leds.color_order not in ("RGB", "GRB", "GBR", "BRG", "RBG", "BGR"):
             raise ValueError("leds.color_order must be a permutation of RGB")
+        if self.effect.animation not in ("travel", "flash"):
+            raise ValueError("effect.animation must be travel or flash")
+        if self.effect.direction not in ("forward", "reverse"):
+            raise ValueError("effect.direction must be forward or reverse")
         ranges = {
             "trigger.debounce_ms": (self.trigger.debounce_ms, 0, 1000),
             "trigger.warmup_seconds": (self.trigger.warmup_seconds, 0, 600),
@@ -99,6 +108,7 @@ class Config:
             "audio.thunder_volume": (self.audio.thunder_volume, 0, 1),
             "audio.reconnect_seconds": (self.audio.reconnect_seconds, 1, 60),
             "audio.command_timeout": (self.audio.command_timeout, 0.1, 10),
+            "effect.travel_seconds": (self.effect.travel_seconds, 0.02, 10),
         }
         for name in ("flash_min", "flash_max", "gap_min", "gap_max"):
             ranges[f"effect.{name}"] = (getattr(self.effect, name), 0.001, 10)

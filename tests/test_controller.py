@@ -74,8 +74,8 @@ async def event(controller, clock, active):
 
 
 async def finish_flashes(clock):
-    for _ in range(10):
-        await clock.advance(0.3)
+    for _ in range(120):
+        await clock.advance(0.05)
 
 
 def test_motion_edges_forward_while_busy_without_queue():
@@ -108,7 +108,7 @@ def test_hold_release_cancels_thunder_and_clears_outputs():
         c, clock, leds, audio, prop = setup("hold")
         await event(c, clock, False)
         await event(c, clock, True)
-        assert leds.frame == [WHITE] * 120 and prop.active
+        assert leds.frame[-1] == WHITE and leds.frame.count(WHITE) == 1 and prop.active
         await event(c, clock, False)
         assert not c.busy and audio.cancelled and not prop.active
         assert leds.frame == [BLACK] * 120 and audio.background_starts == 1
@@ -206,15 +206,16 @@ def test_effect_failure_is_reported_and_audio_cancelled():
     async def scenario():
         c, clock, leds, audio, prop = setup()
 
-        def fail(color):
+        def fail(colors):
             raise RuntimeError("SPI transfer failed")
 
-        leds.fill = fail
+        original_pixels = leds.pixels
+        leds.pixels = fail
         c.start_effect()
         await drain()
         assert c.failed.done() and isinstance(c.failed.result(), ExceptionGroup)
         assert audio.cancelled
-        leds.fill = lambda color: None
+        leds.pixels = original_pixels
         await c.stop()
 
     asyncio.run(scenario())

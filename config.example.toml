@@ -19,8 +19,14 @@ color_order = "GRB"
 
 [effect]
 flashes = 5
+animation = "travel" # travel: moving head/fading trail; flash: whole-strip flicker
+direction = "reverse" # reverse: last pixel to first; forward: first to last
+travel_seconds = 0.4 # Complete sweep, including the trail leaving the scene
+bolt_width = 12 # Head and fading trail length in pixels; capped to leds.count
+# These durations apply only to animation="flash".
 flash_min = 0.05
 flash_max = 0.2
+# Dark pause between strikes, for either animation.
 gap_min = 0.05
 gap_max = 0.3
 

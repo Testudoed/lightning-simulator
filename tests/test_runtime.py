@@ -25,6 +25,12 @@ from lightning_simulator.interfaces import InputEvent
         "[audio]\nbackground_volume=1.1",
         '[audio]\nspeaker_address="invalid"',
         "[effect]\nflash_min=2\nflash_max=1",
+        '[effect]\nanimation="unknown"',
+        '[effect]\ndirection="unknown"',
+        "[effect]\ntravel_seconds=nan",
+        "[effect]\ntravel_seconds=0",
+        "[effect]\nbolt_width=0",
+        "[effect]\nbolt_width=1.5",
         "[trigger]\nunknown=true",
         "[unknown]\nsetting=true",
     ],
@@ -40,6 +46,7 @@ def test_config_paths_and_safe_defaults(tmp_path):
     defaults = load_config()
     assert defaults.trigger.mode == "motion" and not defaults.prop.enabled
     assert defaults.trigger.debounce_ms == 50 and defaults.trigger.warmup_seconds == 60
+    assert defaults.effect.animation == "travel" and defaults.effect.direction == "reverse"
     path = tmp_path / "custom.toml"
     path.write_text('[audio]\nbackground="music.mp3"')
     assert load_config(path).audio.background == str(tmp_path / "music.mp3")
