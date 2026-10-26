@@ -1,0 +1,40 @@
+# Copy to ~/.config/lightning-simulator/config.toml on the Pi.
+[trigger]
+mode = "motion" # motion, hold, toggle; exactly one input is requested
+warmup_seconds = 60.0 # PIR only; inactive input required before arming
+# Button levels must remain stable for this long before changing state.
+debounce_ms = 50.0
+
+[pins]
+chip = "/dev/gpiochip0" # Confirm the BCM GPIO chip with gpioinfo on your Pi 4.
+led = 10 # SPI0 MOSI, physical 19; fixed for this backend
+pir = 17 # physical 11, active high
+button = 27 # physical 13, button to ground, internal pull-up
+relay = 23 # physical 16, active-high 3.3 V compatible relay MODULE
+
+[leds]
+count = 120
+brightness = 255 # 0..255; use this same value for the compatibility spike
+color_order = "GRB"
+
+[effect]
+flashes = 5
+flash_min = 0.05
+flash_max = 0.2
+gap_min = 0.05
+gap_max = 0.3
+
+[audio]
+enabled = true
+background = "resource:background_storm.mp3"
+thunder = "resource:lightning_strike.wav"
+# Custom paths are relative to this TOML file. Background streams continuously.
+background_volume = 0.35
+thunder_volume = 0.65
+sink = "lightning_mix" # Must match the PipeWire drop-in.
+speaker_address = "" # Commission with your A2DP speaker's XX:XX:XX:XX:XX:XX address.
+reconnect_seconds = 5.0
+command_timeout = 3.0
+
+[prop]
+enabled = false # Enable only after the relay is installed and tested.
