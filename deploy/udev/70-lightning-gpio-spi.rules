@@ -1,0 +1,3 @@
+# Debian installations without the Raspberry Pi OS device permission rules.
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
+SUBSYSTEM=="spidev", KERNEL=="spidev*", GROUP="spi", MODE="0660"

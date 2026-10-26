@@ -1,19 +1,19 @@
 [Unit]
-Description=Lightning Simulation Service
-After=network.target
-After=bluetooth.target
-After=sound.target
-After=led_service.service
-Wants=led_service.service
+Description=Lightning simulator and PicoSTORM input controller
+Wants=pipewire.service pipewire-pulse.service wireplumber.service
+After=pipewire.service pipewire-pulse.service wireplumber.service
 
 [Service]
-ExecStart=/usr/local/bin/lightning-simulator
-Restart=always
-User=rpi
-Group=rpi
-WorkingDirectory=/home/rpi
-Environment="XDG_RUNTIME_DIR=/run/user/1000"
-Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse/"
+Type=simple
+WorkingDirectory=%h/Workspace/lightning-simulator
+ExecStart=%h/Workspace/lightning-simulator/.venv/bin/lightning-simulator --config %h/.config/lightning-simulator/config.toml
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+UMask=0077
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
