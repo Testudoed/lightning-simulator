@@ -124,6 +124,10 @@ class Config:
             raise ValueError("Effect minimum durations must not exceed maximum durations")
         if not re.fullmatch(r"[A-Za-z0-9_]+", self.audio.sink):
             raise ValueError("audio.sink must contain only letters, digits and underscores")
+        for name in ("background", "thunder"):
+            value = getattr(self.audio, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"audio.{name} must be a file path or packaged resource")
         if self.audio.speaker_address and not re.fullmatch(
             r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}",
             self.audio.speaker_address,
@@ -160,6 +164,14 @@ def load_config(path: Path | None = None) -> Config:
         if name == "audio" and path:
             for key in ("background", "thunder"):
                 if key in values and not values[key].startswith("resource:"):
-                    values[key] = str((path.resolve().parent / values[key]).resolve())
+                    if not values[key].strip():
+                        raise ValueError(f"audio.{key} must be a file path or packaged resource")
+                    try:
+                        selected = Path(values[key]).expanduser()
+                    except RuntimeError as exc:
+                        raise ValueError(f"audio.{key}: {exc}") from exc
+                    if not selected.is_absolute():
+                        selected = path.resolve().parent / selected
+                    values[key] = str(selected.resolve())
         sections[name] = cls(**values)
     return Config(**sections).validate()

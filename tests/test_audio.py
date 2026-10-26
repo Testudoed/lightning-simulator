@@ -1,15 +1,62 @@
 import asyncio
 import json
 import sys
+import wave
+from contextlib import ExitStack
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from lightning_simulator.audio import PygameAudio
+from lightning_simulator.audio import PygameAudio, resolve_audio_file
 from lightning_simulator.bluetooth import BluetoothRouter, command
-from lightning_simulator.config import AudioConfig
+from lightning_simulator.config import AudioConfig, Config, load_config
+
+
+def write_wav(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(2)
+        audio.setsampwidth(2)
+        audio.setframerate(44100)
+        audio.writeframes(b"\0" * 400)
+    return path
+
+
+@pytest.mark.parametrize("kind", ["relative", "absolute", "home"])
+def test_custom_paths_resolve_for_both_selected_audio_files(tmp_path, kind):
+    config_file = tmp_path / "config.toml"
+    selected = {}
+    expected = {}
+    for role in ("background", "thunder"):
+        if kind == "relative":
+            selected[role] = f"sounds/{role} recording.wav"
+            expected[role] = tmp_path / selected[role]
+        elif kind == "absolute":
+            expected[role] = tmp_path / "absolute" / f"{role}.wav"
+            selected[role] = str(expected[role])
+        else:
+            selected[role] = f"~/audio/{role}.wav"
+            expected[role] = Path.home() / "audio" / f"{role}.wav"
+    config_file.write_text(
+        "[audio]\n" + "\n".join(f"{role} = {json.dumps(value)}" for role, value in selected.items())
+    )
+    config = load_config(config_file)
+    for role in selected:
+        assert getattr(config.audio, role) == str(expected[role].resolve())
+
+
+@pytest.mark.parametrize("problem", ["missing", "empty", "lfs_pointer"])
+def test_audio_file_validation_reports_the_selected_file(tmp_path, problem):
+    path = tmp_path / "selected.wav"
+    if problem == "empty":
+        path.touch()
+    elif problem == "lfs_pointer":
+        path.write_text("version https://git-lfs.github.com/spec/v1\noid sha256:123\nsize 100\n")
+    with ExitStack() as resources, pytest.raises((OSError, ValueError), match="selected.wav"):
+        resolve_audio_file(str(path), resources)
 
 
 def fake_pygame(monkeypatch):
@@ -21,6 +68,87 @@ def fake_pygame(monkeypatch):
     mixer.music.get_busy.return_value = True
     monkeypatch.setitem(sys.modules, "pygame", SimpleNamespace(mixer=mixer))
     return mixer, channel
+
+
+def test_playback_loads_configured_files_and_keeps_background_through_triggers(
+    monkeypatch, tmp_path
+):
+    mixer, channel = fake_pygame(monkeypatch)
+    background = write_wav(tmp_path / "music" / "rain.wav")
+    thunder = write_wav(tmp_path / "thunder.wav")
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('[audio]\nbackground="music/rain.wav"\nthunder="thunder.wav"')
+
+    async def scenario():
+        audio = PygameAudio(load_config(config_file).audio)
+        try:
+            audio.start()
+            audio.set_connected(True)
+            channel.get_busy.return_value = False
+            await audio.thunder()
+            await audio.thunder()
+            mixer.music.load.assert_called_once_with(str(background))
+            mixer.Sound.assert_called_once_with(str(thunder))
+            mixer.music.play.assert_called_once_with(-1)
+            assert channel.play.call_count == 2
+        finally:
+            audio.close()
+
+    asyncio.run(scenario())
+
+
+def test_doctor_checks_custom_files_instead_of_bundled_recordings(monkeypatch, tmp_path):
+    from lightning_simulator import audio as audio_module
+    from lightning_simulator.diagnostics import doctor
+
+    background = write_wav(tmp_path / "rain.wav")
+    thunder = write_wav(tmp_path / "thunder.wav")
+    config = replace(
+        Config(),
+        audio=replace(
+            AudioConfig(),
+            background=str(background),
+            thunder=str(thunder),
+        ),
+    )
+
+    def no_bundled_resource(name):
+        raise AssertionError("Configured custom files must be used")
+
+    monkeypatch.setattr(audio_module, "sound_resource", no_bundled_resource)
+    result = asyncio.run(doctor(config, simulate=True))
+    checks = {check["name"]: check for check in result["checks"]}
+    assert result["ok"]
+    assert checks["audio.background"]["detail"] == str(background)
+    assert checks["audio.thunder"]["detail"] == str(thunder)
+
+
+def test_doctor_reports_missing_selected_audio(tmp_path):
+    from lightning_simulator.diagnostics import doctor
+
+    missing = tmp_path / "missing-thunder.wav"
+    config = replace(Config(), audio=replace(AudioConfig(), thunder=str(missing)))
+    result = asyncio.run(doctor(config, simulate=True))
+    check = next(check for check in result["checks"] if check["name"] == "audio.thunder")
+    assert not result["ok"] and not check["ok"]
+    assert str(missing) in check["detail"]
+
+
+def test_doctor_does_not_require_files_when_audio_is_disabled(tmp_path):
+    from lightning_simulator.diagnostics import doctor
+
+    config = replace(
+        Config(),
+        audio=replace(
+            AudioConfig(),
+            enabled=False,
+            background=str(tmp_path / "missing-background.wav"),
+            thunder=str(tmp_path / "missing-thunder.wav"),
+        ),
+    )
+    result = asyncio.run(doctor(config, simulate=True))
+    assert result["ok"]
+    assert not any(check["name"].startswith("audio.") for check in result["checks"])
 
 
 def test_background_is_started_once_and_untouched_by_thunder_controls(monkeypatch):

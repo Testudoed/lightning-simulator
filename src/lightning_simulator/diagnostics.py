@@ -12,7 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from lightning_simulator.app import cancel, open_device
-from lightning_simulator.audio import PygameAudio, sound_resource
+from lightning_simulator.audio import PygameAudio, resolve_audio_file
 from lightning_simulator.bluetooth import BluetoothRouter, command
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import GPIOTrigger, debounce
@@ -31,15 +31,14 @@ async def doctor(config, simulate=False):
     check(
         "Python 3.13", platform.python_version_tuple()[:2] == ("3", "13"), platform.python_version()
     )
-    for name in ("background_storm.mp3", "lightning_strike.wav"):
-        resource = sound_resource(name)
-        with resource.open("rb") as stream:
-            header = stream.read(43)
-        check(
-            f"packaged {name}",
-            len(header) == 43 and not header.startswith(b"version https://"),
-            str(resource),
-        )
+    if config.audio.enabled:
+        with ExitStack() as resources:
+            for name in ("background", "thunder"):
+                try:
+                    selected = resolve_audio_file(getattr(config.audio, name), resources)
+                    check(f"audio.{name}", True, str(selected))
+                except (OSError, ValueError, RuntimeError) as exc:
+                    check(f"audio.{name}", False, str(exc))
     if not simulate:
         for name in ("gpiod", "rpi-ws281x", "pygame"):
             try:

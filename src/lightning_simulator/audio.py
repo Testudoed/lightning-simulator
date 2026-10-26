@@ -18,6 +18,26 @@ def sound_resource(name):
     return files("lightning_simulator").joinpath("sounds", name)
 
 
+def resolve_audio_file(value: str, resources: ExitStack) -> Path:
+    """Resolve and check a selected file, retaining extracted resources for its owner."""
+    if not value.strip():
+        raise ValueError("Audio file path must not be empty")
+    path = (
+        resources.enter_context(as_file(sound_resource(value[9:])))
+        if value.startswith("resource:")
+        else Path(value).expanduser().resolve()
+    )
+    if not path.is_file():
+        raise FileNotFoundError(f"Audio file not found: {path}")
+    with path.open("rb") as stream:
+        header = stream.read(43)
+    if not header:
+        raise ValueError(f"Audio file is empty: {path}")
+    if header.startswith(b"version https://git-lfs.github.com/spec/"):
+        raise ValueError(f"{path} is a Git LFS pointer; run git lfs pull before deployment")
+    return path
+
+
 class PygameAudio:
     def __init__(self, config: AudioConfig):
         self.config = config
@@ -30,17 +50,7 @@ class PygameAudio:
         return self.mixer is not None
 
     def _path(self, value):
-        path = (
-            self.resources.enter_context(as_file(sound_resource(value[9:])))
-            if value.startswith("resource:")
-            else Path(value)
-        )
-        if not path.is_file():
-            raise FileNotFoundError(path)
-        with path.open("rb") as stream:
-            if stream.read(43).startswith(b"version https://git-lfs.github.com/spec/"):
-                raise ValueError(f"{path} is a Git LFS pointer; run git lfs pull before deployment")
-        return str(path)
+        return str(resolve_audio_file(value, self.resources))
 
     def start(self):
         if self.started:

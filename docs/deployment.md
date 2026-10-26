@@ -25,6 +25,23 @@ mkdir -p ~/.config/lightning-simulator
 cp config.example.toml ~/.config/lightning-simulator/config.toml
 ```
 
+To use your own recordings, edit the `[audio]` table in that config file:
+
+```toml
+[audio]
+background = "/home/pi/audio/rain.mp3"
+thunder = "~/audio/thunder.wav"
+```
+
+Paths can be absolute, start with `~/`, or be relative to the TOML file's
+directory. For example, `audio/rain.mp3` here resolves beneath
+`~/.config/lightning-simulator/`, rather than the checkout. Keep
+`resource:background_storm.mp3` / `resource:lightning_strike.wav` to use the
+supplied recordings. `doctor --simulate` checks the selected files without GPIO
+or audio hardware; `component-test audio` checks actual playback. Audio files
+are not required when `audio.enabled=false`. Restart the application or user
+service after editing the file selections.
+
 `.python-version` selects 3.13 and `uv.lock` pins the dependency graph. Keep both
 in version control. Deployment uses the lock without resolving new versions.
 The Pi extra uses `gpiod` 2.x, `rpi_ws281x` and pygame. SPI LEDs require neither

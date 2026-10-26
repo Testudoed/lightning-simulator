@@ -33,9 +33,12 @@ gap_max = 0.3
 
 [audio]
 enabled = true
+# Keep the bundled recordings, or replace each value with your own file path.
 background = "resource:background_storm.mp3"
 thunder = "resource:lightning_strike.wav"
-# Custom paths are relative to this TOML file. Background streams continuously.
+# Example paths: "/home/pi/audio/rain.mp3", "~/audio/thunder.wav", "audio/rain.mp3".
+# Relative paths start from this TOML file's directory; ~ expands to the user's home.
+# Background streams continuously; thunder plays alongside it when triggered.
 background_volume = 0.35
 thunder_volume = 0.65
 sink = "lightning_mix" # Must match the PipeWire drop-in.

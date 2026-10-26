@@ -6,7 +6,7 @@ not substitute for commissioning on the Raspberry Pi.
 - `uv sync` resolved and installed the locked base/development environment.
 - `uv sync --extra pi` built rpi-ws281x 5.0.0 and installed gpiod 2.5.0 and pygame
   2.6.1. Driver signatures/constants were inspected without opening hardware.
-- `pytest -q`: 69 passing tests using fake hardware, controlled time and fake audio.
+- `pytest -q`: 83 passing tests using fake hardware, controlled time and fake audio.
   Coverage includes all modes, busy behavior, independent PIR forwarding, startup
   warmup/held inputs, stable debounce, cancellation, output cleanup after failures,
   stale GPIO fd readiness, and Bluetooth/audio recovery without background restarts.
@@ -16,6 +16,10 @@ not substitute for commissioning on the Raspberry Pi.
   during growth, peak and dark pause. Slow rendering still reaches the bottom
   and yields so cancellation stays responsive.
   Whole-strip flashes remain available through `effect.animation="flash"`.
+  Audio tests verify selected custom files reach pygame, absolute/relative/home
+  paths resolve correctly, and triggers retain the current background stream.
+  Diagnostics check the configured recordings, report missing/empty/LFS-pointer
+  files, and skip file requirements when audio is disabled.
 - Ruff lint and formatting checks passed, along with `git diff --check`.
 - Motion, hold and toggle CLI simulations ran successfully. SIGTERM during active
   simulated playback exited cleanly and reported inactive outputs in each mode.

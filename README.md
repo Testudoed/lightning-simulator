@@ -81,6 +81,30 @@ uv run lightning-simulator --config config.example.toml doctor
 uv run lightning-simulator --config config.example.toml component-test input --duration 20
 ```
 
+Choose your audio files in the TOML file passed to `--config`:
+
+```toml
+[audio]
+background = "~/audio/rain.mp3"
+thunder = "~/audio/thunder.wav"
+```
+
+Both settings accept absolute paths, `~/` paths, or paths relative to the TOML
+file's directory. Background audio loops continuously; the selected thunder
+recording plays over it when triggered. The bundled recordings remain the
+defaults: `resource:background_storm.mp3` and `resource:lightning_strike.wav`.
+
+Check the selected files without opening Pi hardware:
+
+```console
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml doctor --simulate
+```
+
+`doctor` checks that the selected files exist, are readable and nonempty, and
+are not Git LFS pointers. Use `component-test audio` to
+check playback. Restart the application after changing audio paths; for the user
+service, run `systemctl --user restart lightning_simulation.service`.
+
 The [deployment guide](docs/deployment.md) covers the Pi, headless Bluetooth,
 user service, hardware wiring and bounded component tests. The
 [commissioning checklist](docs/commissioning.md) records acceptance results.
