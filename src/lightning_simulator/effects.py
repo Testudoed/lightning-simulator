@@ -1,23 +1,14 @@
-"""Frames for a moving lightning strike, in logical RGB pixel order."""
+"""Frames for a lightning path growing down the scene, in logical RGB order."""
 
 from lightning_simulator.leds import BLACK, RGB
 
 
-def travel_frame(count: int, head: int, width: int, direction: str) -> list[RGB]:
-    """A white head with a fading trail; the trail exits after the last pixel."""
-    width = min(width, count)
-    frame = [BLACK] * count
-    for distance in range(width):
-        position = head - distance
-        if 0 <= position < count:
-            level = round(255 * (width - distance) / width)
-            index = count - 1 - position if direction == "reverse" else position
-            frame[index] = (level, level, level)
-    return frame
+def leader_frame(count: int, reached: int, level: int, direction: str) -> list[RGB]:
+    """Keep the reached path lit until the full-brightness flash at the bottom."""
+    frame = [(level, level, level)] * reached + [BLACK] * (count - reached)
+    return list(reversed(frame)) if direction == "reverse" else frame
 
 
-def travel_heads(count: int, width: int) -> tuple[int, ...]:
-    """Overlapping steps cover every pixel, including when rendering runs slowly."""
-    width = min(width, count)
-    end = count + width - 1
-    return (*range(0, end, max(1, width // 2)), end)
+def leader_steps(count: int, step_pixels: int) -> tuple[int, ...]:
+    """Start at the top pixel, advance in groups, and always reach the bottom."""
+    return (*range(1, count, min(step_pixels, count)), count)

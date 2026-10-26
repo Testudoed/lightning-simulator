@@ -6,13 +6,15 @@ not substitute for commissioning on the Raspberry Pi.
 - `uv sync` resolved and installed the locked base/development environment.
 - `uv sync --extra pi` built rpi-ws281x 5.0.0 and installed gpiod 2.5.0 and pygame
   2.6.1. Driver signatures/constants were inspected without opening hardware.
-- `pytest -q`: 61 passing tests using fake hardware, controlled time and fake audio.
+- `pytest -q`: 69 passing tests using fake hardware, controlled time and fake audio.
   Coverage includes all modes, busy behavior, independent PIR forwarding, startup
   warmup/held inputs, stable debounce, cancellation, output cleanup after failures,
   stale GPIO fd readiness, and Bluetooth/audio recovery without background restarts.
-  Traveling-strike tests cover both directions, full scene coverage with an
-  overlapping fading trail, configurable traversal time, five strikes per
-  sequence, cleanup on cancellation, and slow rendering without skipped pixels.
+  Lightning tests cover growth in both directions, the path remaining lit until
+  reaching the bottom, a full-white peak followed by blackout, configurable path
+  brightness and traversal time, three strikes by default, and cancellation
+  during growth, peak and dark pause. Slow rendering still reaches the bottom
+  and yields so cancellation stays responsive.
   Whole-strip flashes remain available through `effect.animation="flash"`.
 - Ruff lint and formatting checks passed, along with `git diff --check`.
 - Motion, hold and toggle CLI simulations ran successfully. SIGTERM during active

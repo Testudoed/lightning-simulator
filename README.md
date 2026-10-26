@@ -27,34 +27,43 @@ hardware. Running `lightning-simulator` with no subcommand starts the real app.
 | `hold` | One sequence per press. Release cancels it immediately. Holding does not repeat. | Active until release, even after local playback finishes. |
 | `toggle` | First press starts one sequence; next press stops it if still playing. | Remains latched until the next press, even after playback finishes. |
 
-A sequence remains busy until both the five flashes and thunder finish. Button
+A sequence remains busy until both the configured strikes and thunder finish. Button
 stops clear LEDs, stop the dedicated thunder channel and release the relay.
 Background audio keeps its position. No input events queue a later sequence.
 On every process start outputs are inactive and an inactive input is required
 before arming; toggle state is never persisted. Buttons use a stable 50 ms
 software debounce; motion uses a configurable 60 s warmup.
 
-Each lightning strike defaults to a **traveling white head with a fading trail**,
-moving from the last pixel to the first across both strips. Five strikes play per
-sequence. Set `[effect]` options in TOML to adjust the movement:
+Each lightning strike **grows a dim, continuously lit path from top to bottom**.
+When the path reaches the bottom, the whole strip flashes at full configured
+brightness, then switches off. The sequence repeats **three times** by default,
+with a short dark pause between strikes. The default direction runs from the
+first LED to the last, reversing the previous moving-trail effect.
+
+Set `[effect]` options in TOML to adjust the movement and flash:
 
 ```toml
 [effect]
+flashes = 3
 animation = "travel"
-direction = "reverse" # "forward" runs from the first pixel to the last
-travel_seconds = 0.4
+direction = "forward" # Use "reverse" to start from the last LED instead
+travel_seconds = 0.15
+leader_brightness = 0.25
 bolt_width = 12
+flash_min = 0.05
+flash_max = 0.2
 ```
 
-`travel_seconds` is the requested time for one sweep, including its trail leaving
-the scene. Larger values slow it down. `bolt_width` includes the bright head and
-fading trail, capped to the pixel count. Rendering uses overlapping frames so
-every position lights up; hardware throughput can limit the maximum speed.
-The existing `gap_min` / `gap_max` settings control pauses between strikes.
-`flash_min` / `flash_max` apply to the optional `animation = "flash"` effect,
-which illuminates the whole strip simultaneously.
+`travel_seconds` is the requested time to reach the bottom; larger values slow
+the growth. `leader_brightness` controls the path's brightness relative to the
+full-white flash. `bolt_width` sets how many new pixels light up per growth step;
+previously lit pixels stay on. Hardware throughput can limit the maximum speed.
+`flash_min` / `flash_max` set the brief full-brightness hold after reaching the
+bottom, and `gap_min` / `gap_max` set the dark pause before the next strike.
+The full-white flash respects `leds.brightness` (255 by default).
+The optional `animation = "flash"` skips the growing path.
 
-Preview one five-strike sequence on the Pi without a trigger or audio setup:
+Preview one three-strike sequence on the Pi without a trigger or audio setup:
 
 ```console
 .venv/bin/lightning-simulator --config config.example.toml component-test leds --duration 5

@@ -32,11 +32,12 @@ class LEDConfig:
 
 @dataclass(frozen=True)
 class EffectConfig:
-    flashes: int = 5
+    flashes: int = 3
     animation: str = "travel"
-    direction: str = "reverse"
-    travel_seconds: float = 0.4
+    direction: str = "forward"
+    travel_seconds: float = 0.15
     bolt_width: int = 12
+    leader_brightness: float = 0.25
     flash_min: float = 0.05
     flash_max: float = 0.2
     gap_min: float = 0.05
@@ -109,6 +110,7 @@ class Config:
             "audio.reconnect_seconds": (self.audio.reconnect_seconds, 1, 60),
             "audio.command_timeout": (self.audio.command_timeout, 0.1, 10),
             "effect.travel_seconds": (self.effect.travel_seconds, 0.02, 10),
+            "effect.leader_brightness": (self.effect.leader_brightness, 0.01, 1),
         }
         for name in ("flash_min", "flash_max", "gap_min", "gap_max"):
             ranges[f"effect.{name}"] = (getattr(self.effect, name), 0.001, 10)

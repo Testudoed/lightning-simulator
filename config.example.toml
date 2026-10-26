@@ -18,15 +18,16 @@ brightness = 255 # 0..255; use this same value for the compatibility spike
 color_order = "GRB"
 
 [effect]
-flashes = 5
-animation = "travel" # travel: moving head/fading trail; flash: whole-strip flicker
-direction = "reverse" # reverse: last pixel to first; forward: first to last
-travel_seconds = 0.4 # Complete sweep, including the trail leaving the scene
-bolt_width = 12 # Head and fading trail length in pixels; capped to leds.count
-# These durations apply only to animation="flash".
+flashes = 3
+animation = "travel" # Grow a dim path, flash the whole strip at the bottom, then off
+direction = "forward" # First LED at the top; use "reverse" if the last LED is at the top
+travel_seconds = 0.15 # Time for the path to reach the bottom
+bolt_width = 12 # Number of new pixels illuminated per growth step
+leader_brightness = 0.25 # Path brightness relative to the full-brightness flash (0.01..1)
+# Full-brightness flash duration after reaching the bottom (also used by animation="flash").
 flash_min = 0.05
 flash_max = 0.2
-# Dark pause between strikes, for either animation.
+# Dark pause before the next strike, for either animation.
 gap_min = 0.05
 gap_max = 0.3
 

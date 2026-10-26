@@ -7,7 +7,7 @@ from lightning_simulator.config import Config, TriggerConfig
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import Debouncer
 from lightning_simulator.interfaces import InputEvent
-from lightning_simulator.leds import BLACK, WHITE, SimLEDs
+from lightning_simulator.leds import BLACK, SimLEDs
 from lightning_simulator.prop import SimProp
 
 
@@ -108,7 +108,7 @@ def test_hold_release_cancels_thunder_and_clears_outputs():
         c, clock, leds, audio, prop = setup("hold")
         await event(c, clock, False)
         await event(c, clock, True)
-        assert leds.frame[-1] == WHITE and leds.frame.count(WHITE) == 1 and prop.active
+        assert leds.frame[0] != BLACK and leds.frame[1:] == [BLACK] * 119 and prop.active
         await event(c, clock, False)
         assert not c.busy and audio.cancelled and not prop.active
         assert leds.frame == [BLACK] * 120 and audio.background_starts == 1

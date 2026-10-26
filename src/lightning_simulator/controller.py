@@ -7,7 +7,7 @@ import time
 from collections.abc import Awaitable, Callable
 
 from lightning_simulator.config import Config
-from lightning_simulator.effects import travel_frame, travel_heads
+from lightning_simulator.effects import leader_frame, leader_steps
 from lightning_simulator.interfaces import Audio, InputEvent, LEDs, PropOutput
 from lightning_simulator.leds import WHITE
 
@@ -95,9 +95,8 @@ class Controller:
             for _ in range(effect.flashes):
                 if effect.animation == "travel":
                     await self.travel()
-                else:
-                    self.leds.fill(WHITE)
-                    await self.sleep(self.uniform(effect.flash_min, effect.flash_max))
+                self.leds.fill(WHITE)
+                await self.sleep(self.uniform(effect.flash_min, effect.flash_max))
                 self.leds.clear()
                 await self.sleep(self.uniform(effect.gap_min, effect.gap_max))
         finally:
@@ -105,19 +104,20 @@ class Controller:
 
     async def travel(self):
         effect = self.config.effect
-        heads = travel_heads(self.leds.count, effect.bolt_width)
-        interval = effect.travel_seconds / (len(heads) - 1)
+        steps = leader_steps(self.leds.count, effect.bolt_width)
+        interval = effect.travel_seconds / max(1, len(steps) - 1)
+        level = round(255 * effect.leader_brightness)
         started = self.now()
-        for step, head in enumerate(heads):
+        for step, reached in enumerate(steps):
             self.leds.pixels(
-                travel_frame(
+                leader_frame(
                     self.leds.count,
-                    head,
-                    effect.bolt_width,
+                    reached,
+                    level,
                     effect.direction,
                 )
             )
-            if step < len(heads) - 1:
+            if step < len(steps) - 1:
                 # Account for time spent sending SPI frames without skipping scene positions.
                 # Always yield, even if hardware throughput makes the requested speed impossible.
                 await self.sleep(max(0, started + (step + 1) * interval - self.now()))

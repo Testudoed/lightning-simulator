@@ -161,12 +161,15 @@ uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/light
 uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test audio --duration 20
 ```
 
-The LED test plays one five-strike sequence using the configured animation. By
-default a white head with a fading trail travels from the last pixel to the first
-in each strike. Set `effect.direction="forward"` to reverse that movement, increase
-`effect.travel_seconds` to slow it down, or adjust `effect.bolt_width` to change the
-trail length. The command clears LEDs on completion or interruption; its duration
-is an upper bound, so increase it when previewing a slower sequence. See the
+The LED test defaults to three strikes. Each grows a dim path from the first LED
+to the last, flashes the full strip at maximum configured brightness when it
+reaches the bottom, then goes dark. Set `effect.direction="reverse"` to start at
+the last LED instead. `effect.travel_seconds` controls descent time;
+`effect.leader_brightness` controls the dim path; `effect.bolt_width` controls how
+many pixels are added per growth step. `flash_min` / `flash_max` control the bright
+hold, and `gap_min` / `gap_max` control the following dark pause.
+The command clears LEDs on completion or interruption; its duration is an upper
+bound, so increase it when previewing a slower sequence. See the
 [effect configuration](../config.example.toml) for all settings.
 
 The relay test requires `prop.enabled=true`. Each command opens only its selected
