@@ -7,13 +7,12 @@ lives elsewhere. Do the [LED spike](led-spike.md) before enabling the full servi
 
 ## Packages and code
 
-Install the system audio stack, Bluetooth tools, GPIO tools and optional source
+Install the system audio stack, GPIO tools and optional source
 build requirements (ARM wheels may depend on OS/architecture):
 
 ```console
 sudo apt update
-sudo apt install git git-lfs python3.13 python3.13-dev build-essential swig pkg-config libgpiod-dev gpiod bluez pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth pulseaudio-utils libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-ttf-dev libportmidi-dev libfreetype-dev libjpeg-dev libpng-dev
-sudo systemctl enable --now bluetooth.service
+sudo apt install git git-lfs python3.13 python3.13-dev build-essential swig pkg-config libgpiod-dev gpiod pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-ttf-dev libportmidi-dev libfreetype-dev libjpeg-dev libpng-dev
 ```
 
 As `pi`, in the checkout:
@@ -65,7 +64,7 @@ installations without existing device-group rules:
 ```console
 sudo groupadd --system --force gpio
 sudo groupadd --system --force spi
-sudo usermod -aG gpio,spi,bluetooth pi
+sudo usermod -aG gpio,spi,audio pi
 sudo cp deploy/udev/70-lightning-gpio-spi.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo loginctl enable-linger pi
@@ -110,7 +109,69 @@ Start with `prop.enabled=false`. Install and verify the relay's inactive boot
 state, then set it true for the bounded relay test. Keep it disabled until
 commissioning is complete.
 
-## Headless Bluetooth and persistent audio sink
+## Wired audio (default)
+
+Connect the Pi 4's 3.5 mm headphone jack to the AUX/line input of your powered
+speakers. Keep the speakers powered from their own supply. In
+`/boot/firmware/config.txt`, enable onboard audio with `dtparam=audio=on` in an
+applicable section, and reboot if you changed it. SPI LED output can operate
+alongside onboard analog audio; see the [driver's SPI notes](https://github.com/jgarff/rpi_ws281x#limitations).
+
+As `pi`, start the headless audio stack:
+
+```console
+systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service
+```
+
+Configure the application:
+
+```toml
+[audio]
+output = "wired"
+device = ""
+```
+
+The empty device setting auto-detects the Pi's `bcm2835 Headphones` sink,
+including when an HDMI display is connected. Background and thunder are mixed
+directly into that output. Wired mode needs neither Bluetooth nor the
+`lightning_mix` virtual sink. The app does not change your desktop's default
+audio output.
+
+For another wired output, set `audio.device` to its exact name from
+`pactl list short sinks`. On the commissioning Pi, the jack's name was
+`alsa_output.platform-fe00b840.mailbox.stereo-fallback`; names can differ between
+installations, so automatic detection is preferred. `wpctl status` and `aplay -l`
+also help identify devices. Confirm the output is unmuted and its volume is
+audible; `doctor` reports muted wired output. The configured application volumes
+and the powered speakers' own volume also apply.
+
+`component-test audio --duration 12` plays background and one thunder recording,
+then stops. A wired output outage or audio-server failure is logged while
+lighting continues. Commands remain bounded, recovery retries every five seconds
+by default, and unavailable thunder is dropped. Reinitializing a lost audio
+device/server restarts the background stream; ordinary triggers and button stops
+never restart it.
+
+## Optional Bluetooth and persistent audio sink
+
+For Bluetooth mode, install its optional system dependencies:
+
+```console
+sudo apt install bluez libspa-0.2-bluetooth
+sudo usermod -aG bluetooth pi
+sudo systemctl enable --now bluetooth.service
+```
+
+Reboot after group changes so the lingering user manager receives them. Select
+Bluetooth explicitly in TOML, including when upgrading an older installation
+that previously used Bluetooth:
+
+```toml
+[audio]
+output = "bluetooth"
+speaker_address = "AA:BB:CC:DD:EE:FF"
+sink = "lightning_mix"
+```
 
 Use a dedicated `pi` PipeWire/WirePlumber user session, with lingering enabled.
 WirePlumber's [headless Bluetooth guidance](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html)

@@ -47,6 +47,8 @@ class EffectConfig:
 @dataclass(frozen=True)
 class AudioConfig:
     enabled: bool = True
+    output: str = "wired"
+    device: str = ""
     background: str = "resource:background_storm.mp3"
     thunder: str = "resource:lightning_strike.wav"
     background_volume: float = 0.35
@@ -122,6 +124,10 @@ class Config:
             or self.effect.gap_min > self.effect.gap_max
         ):
             raise ValueError("Effect minimum durations must not exceed maximum durations")
+        if self.audio.output not in ("wired", "bluetooth"):
+            raise ValueError("audio.output must be wired or bluetooth")
+        if self.audio.device and not re.fullmatch(r"[A-Za-z0-9_.:-]+", self.audio.device):
+            raise ValueError("audio.device must be an exact PipeWire sink name or empty")
         if not re.fullmatch(r"[A-Za-z0-9_]+", self.audio.sink):
             raise ValueError("audio.sink must contain only letters, digits and underscores")
         for name in ("background", "thunder"):

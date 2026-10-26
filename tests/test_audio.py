@@ -11,8 +11,8 @@ from unittest.mock import Mock
 import pytest
 
 from lightning_simulator.audio import PygameAudio, resolve_audio_file
-from lightning_simulator.bluetooth import BluetoothRouter, command
 from lightning_simulator.config import AudioConfig, Config, load_config
+from lightning_simulator.routing import AudioRouter, command
 
 
 def write_wav(path):
@@ -233,9 +233,9 @@ def test_bluetooth_absent_late_connection_disconnect_and_reconnect(monkeypatch):
     mixer, channel = fake_pygame(monkeypatch)
 
     async def scenario():
-        config = replace(AudioConfig(), speaker_address="AA:BB:CC:DD:EE:FF")
+        config = replace(AudioConfig(), output="bluetooth", speaker_address="AA:BB:CC:DD:EE:FF")
         audio, pulse = PygameAudio(config), PulseServer()
-        router = BluetoothRouter(config, audio, runner=pulse)
+        router = AudioRouter(config, audio, runner=pulse)
         with pytest.raises(RuntimeError, match="Speaker absent"):
             await router.check()
         await audio.thunder()
@@ -281,8 +281,8 @@ def test_mixer_health_error_can_recover_after_audio_server_failure(monkeypatch):
     mixer, channel = fake_pygame(monkeypatch)
 
     async def scenario():
-        audio, pulse = PygameAudio(AudioConfig()), PulseServer()
-        router = BluetoothRouter(audio.config, audio, runner=pulse)
+        audio, pulse = PygameAudio(AudioConfig(output="bluetooth")), PulseServer()
+        router = AudioRouter(audio.config, audio, runner=pulse)
         await router.check()
         assert audio.started
         mixer.music.get_busy.side_effect = RuntimeError("server lost")

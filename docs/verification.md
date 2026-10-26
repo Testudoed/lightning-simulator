@@ -6,7 +6,7 @@ not substitute for commissioning on the Raspberry Pi.
 - `uv sync` resolved and installed the locked base/development environment.
 - `uv sync --extra pi` built rpi-ws281x 5.0.0 and installed gpiod 2.5.0 and pygame
   2.6.1. Driver signatures/constants were inspected without opening hardware.
-- `pytest -q`: 83 passing tests using fake hardware, controlled time and fake audio.
+- `pytest -q`: 94 passing tests using fake hardware, controlled time and fake audio.
   Coverage includes all modes, busy behavior, independent PIR forwarding, startup
   warmup/held inputs, stable debounce, cancellation, output cleanup after failures,
   stale GPIO fd readiness, and Bluetooth/audio recovery without background restarts.
@@ -20,6 +20,13 @@ not substitute for commissioning on the Raspberry Pi.
   paths resolve correctly, and triggers retain the current background stream.
   Diagnostics check the configured recordings, report missing/empty/LFS-pointer
   files, and skip file requirements when audio is disabled.
+  Routing tests cover automatic Pi headphone selection, explicit wired devices,
+  wired operation without Bluetooth or a virtual sink, output loss/recovery,
+  no queued thunder, and mode-specific diagnostics including muted outputs.
+- A 12-second audio-only test on the target Pi successfully selected the onboard
+  jack, played background and triggered thunder, and stopped without software
+  errors. The operator confirmed audible output. See the
+  [wired audio test record](commissioning/2026-10-26-wired-audio.md).
 - Ruff lint and formatting checks passed, along with `git diff --check`.
 - Motion, hold and toggle CLI simulations ran successfully. SIGTERM during active
   simulated playback exited cleanly and reported inactive outputs in each mode.

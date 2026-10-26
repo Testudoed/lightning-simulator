@@ -7,12 +7,12 @@ from contextlib import AsyncExitStack, ExitStack
 from dataclasses import replace
 
 from lightning_simulator.audio import PygameAudio, SilentAudio, SimAudio
-from lightning_simulator.bluetooth import BluetoothRouter
 from lightning_simulator.config import Config
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import GPIOTrigger, SimTrigger, debounce
 from lightning_simulator.leds import SimLEDs, SPILEDs
 from lightning_simulator.prop import DisabledProp, GPIOProp, SimProp
+from lightning_simulator.routing import AudioRouter
 
 log = logging.getLogger(__name__)
 
@@ -96,9 +96,9 @@ async def run_application(config: Config, *, simulate=False, duration=None):
         async with AsyncExitStack() as tasks:
             router = None
             if not simulate and config.audio.enabled:
-                router = BluetoothRouter(config.audio, audio)
+                router = AudioRouter(config.audio, audio)
                 tasks.push_async_callback(router.close)
-                route_task = asyncio.create_task(router.run(), name="bluetooth-recovery")
+                route_task = asyncio.create_task(router.run(), name="audio-recovery")
                 tasks.push_async_callback(cancel, route_task)
             warmup_task = asyncio.create_task(warmup(controller))
             tasks.push_async_callback(cancel, warmup_task)

@@ -85,6 +85,8 @@ Choose your audio files in the TOML file passed to `--config`:
 
 ```toml
 [audio]
+output = "wired"
+device = "" # Auto-detect the Pi headphone jack
 background = "~/audio/rain.mp3"
 thunder = "~/audio/thunder.wav"
 ```
@@ -105,12 +107,24 @@ are not Git LFS pointers. Use `component-test audio` to
 check playback. Restart the application after changing audio paths; for the user
 service, run `systemctl --user restart lightning_simulation.service`.
 
+Wired audio is the default: connect the Pi 4's 3.5 mm jack to the powered
+speakers' AUX/line input. The app selects `bcm2835 Headphones` directly through
+PipeWire and mixes background/thunder there. No Bluetooth pairing or virtual
+sink configuration is needed. An exact PipeWire sink name in `audio.device`
+can select another wired output, such as a USB audio adapter. Use
+`pactl list short sinks` to list names. The automatic selection uses the Pi jack
+even when an HDMI output is available.
+
+Bluetooth remains optional. Set `audio.output="bluetooth"`, configure
+`audio.speaker_address`, and follow the [Bluetooth setup](docs/deployment.md#optional-bluetooth-and-persistent-audio-sink).
+That mode uses the persistent `lightning_mix` sink and reconnects a paired speaker.
+
 The [deployment guide](docs/deployment.md) covers the Pi, headless Bluetooth,
 user service, hardware wiring and bounded component tests. The
 [commissioning checklist](docs/commissioning.md) records acceptance results.
-Defaults are motion mode, full configured LED brightness, 0.35 background volume,
-0.65 thunder volume and PicoSTORM forwarding **disabled**. Set the speaker address
-when commissioning. PicoSTORM's audio remains independently configured.
+Defaults are motion mode, wired audio, full configured LED brightness, 0.35
+background volume, 0.65 thunder volume and PicoSTORM forwarding **disabled**.
+PicoSTORM's audio remains independently configured.
 
 Development checks:
 

@@ -13,11 +13,11 @@ from pathlib import Path
 
 from lightning_simulator.app import cancel, open_device
 from lightning_simulator.audio import PygameAudio, resolve_audio_file
-from lightning_simulator.bluetooth import BluetoothRouter, command
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import GPIOTrigger, debounce
 from lightning_simulator.leds import SPILEDs
 from lightning_simulator.prop import GPIOProp, SimProp
+from lightning_simulator.routing import AudioRouter, command, wired_sink
 
 log = logging.getLogger(__name__)
 
@@ -54,13 +54,17 @@ async def doctor(config, simulate=False):
         for setting in ("dtparam=spi=on", "core_freq=500", "core_freq_min=500"):
             check(setting, setting in lines, "Presence only; confirm active section and reboot")
         if config.audio.enabled:
-            for executable in ("pactl", "bluetoothctl"):
-                check(executable, shutil.which(executable), "Required for Bluetooth routing")
-            check(
-                "speaker address",
-                config.audio.speaker_address,
-                config.audio.speaker_address or "unset",
+            executables = (
+                ("pactl", "bluetoothctl") if config.audio.output == "bluetooth" else ("pactl",)
             )
+            for executable in executables:
+                check(executable, shutil.which(executable), "Required for selected audio output")
+            if config.audio.output == "bluetooth":
+                check(
+                    "speaker address",
+                    config.audio.speaker_address,
+                    config.audio.speaker_address or "unset",
+                )
             try:
                 sinks = json.loads(
                     await command(
@@ -71,11 +75,24 @@ async def doctor(config, simulate=False):
                         timeout=config.audio.command_timeout,
                     )
                 )
-                check(
-                    "persistent audio sink",
-                    any(s.get("name") == config.audio.sink for s in sinks),
-                    config.audio.sink,
-                )
+                if config.audio.output == "wired":
+                    target = wired_sink(sinks, config.audio.device)
+                    check(
+                        "wired audio output",
+                        target,
+                        target
+                        or "Pi headphone jack not found; enable dtparam=audio=on "
+                        "or set audio.device",
+                    )
+                    if target:
+                        selected = next(s for s in sinks if s["name"] == target)
+                        check("wired output unmuted", not selected.get("mute", False), target)
+                else:
+                    check(
+                        "persistent audio sink",
+                        any(s.get("name") == config.audio.sink for s in sinks),
+                        config.audio.sink,
+                    )
             except Exception as exc:
                 check("PipeWire/Pulse server", False, str(exc))
     result["ok"] = all(item["ok"] for item in result["checks"])
@@ -132,7 +149,7 @@ async def component_test(config, component, duration):
         elif component == "audio":
             audio = PygameAudio(config.audio)
             devices.callback(audio.close)
-            router = BluetoothRouter(config.audio, audio)
+            router = AudioRouter(config.audio, audio)
             async with AsyncExitStack() as tasks:
                 tasks.push_async_callback(router.close)
                 route_task = asyncio.create_task(router.run())
@@ -147,4 +164,4 @@ async def component_test(config, component, duration):
                         played = True
                     await asyncio.sleep(0.05)
                 if not played:
-                    raise RuntimeError("No Bluetooth audio route became available during test")
+                    raise RuntimeError("No audio output became available during test")

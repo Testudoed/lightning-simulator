@@ -24,6 +24,8 @@ from lightning_simulator.interfaces import InputEvent
         '[prop]\nenabled="yes"',
         "[audio]\nbackground_volume=1.1",
         '[audio]\nspeaker_address="invalid"',
+        '[audio]\noutput="invalid"',
+        '[audio]\ndevice="invalid sink name"',
         '[audio]\nbackground=""',
         '[audio]\nbackground="   "',
         '[audio]\nthunder=""',
@@ -55,6 +57,7 @@ def test_config_paths_and_safe_defaults(tmp_path):
     assert defaults.trigger.debounce_ms == 50 and defaults.trigger.warmup_seconds == 60
     assert defaults.effect.animation == "travel" and defaults.effect.direction == "forward"
     assert defaults.effect.flashes == 3
+    assert defaults.audio.output == "wired" and defaults.audio.device == ""
     path = tmp_path / "custom.toml"
     path.write_text('[audio]\nbackground="music.mp3"')
     assert load_config(path).audio.background == str(tmp_path / "music.mp3")

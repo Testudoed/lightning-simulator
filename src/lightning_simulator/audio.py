@@ -44,6 +44,7 @@ class PygameAudio:
         self.mixer = self.channel = self.sound = None
         self.resources = ExitStack()
         self.connected = False
+        self.output_sink = None
 
     @property
     def started(self):
@@ -52,12 +53,13 @@ class PygameAudio:
     def _path(self, value):
         return str(resolve_audio_file(value, self.resources))
 
-    def start(self):
+    def start(self, sink=None):
         if self.started:
             return
         os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
         os.environ["SDL_AUDIODRIVER"] = "pulseaudio"
-        os.environ["PULSE_SINK"] = self.config.sink
+        selected_sink = sink or self.config.sink
+        os.environ["PULSE_SINK"] = selected_sink
         from pygame import mixer
 
         try:
@@ -73,16 +75,18 @@ class PygameAudio:
             mixer.music.load(background)
             mixer.music.set_volume(self.config.background_volume)
             mixer.music.play(-1)
-            log.info("Streaming background started on %s", self.config.sink)
+            self.output_sink = selected_sink
+            log.info("Streaming background started on %s", selected_sink)
         except BaseException:
             mixer.quit()
             self.mixer = self.channel = self.sound = None
+            self.output_sink = None
             self.resources.close()
             raise
 
     def set_connected(self, connected):
         if connected != self.connected:
-            log.info("Bluetooth audio %s", "available" if connected else "unavailable")
+            log.info("Audio output %s", "available" if connected else "unavailable")
         self.connected = connected
         if not connected:
             self.stop_thunder()
@@ -126,6 +130,7 @@ class PygameAudio:
             log.warning("Mixer cleanup after audio failure: %s", exc)
         finally:
             self.mixer = self.channel = self.sound = None
+            self.output_sink = None
             self.resources.close()
 
 

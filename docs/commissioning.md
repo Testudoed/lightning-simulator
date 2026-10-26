@@ -1,7 +1,9 @@
 # Commissioning record
 
-Status: **not yet tested on target hardware**. Keep completed copies with the
-machine's deployment notes. Software simulation is not a visual LED pass.
+Status: **wired audio playback verified on the target Pi**; see the
+[audio test record](commissioning/2026-10-26-wired-audio.md). Complete the remaining
+commissioning checks below and keep copies with the machine's deployment notes.
+Software simulation is not a visual LED pass.
 
 ## LED spike (direct 3.3 V first)
 
@@ -44,7 +46,16 @@ comparison establishes it is needed.
 - [ ] Service restart during each effect stage clears outputs and never restores toggle latch.
 - [ ] PicoSTORM audio and ambient configuration checked independently.
 
-## Bluetooth and unattended boot
+## Audio and unattended boot
+
+- Selected audio mode (`wired` by default, or `bluetooth`):
+- Wired device name, output volume and listening observations:
+- [ ] Wired mode uses the Pi jack with powered speakers, including with HDMI connected.
+- [ ] Wired background and thunder overlap audibly; trigger stops preserve background position.
+- [ ] Wired test stops cleanly; missing output or audio-server failure leaves lighting operational.
+- [ ] Wired mode works without Bluetooth, a speaker address or a virtual sink.
+
+For optional Bluetooth mode:
 
 - Speaker model/address, pairing/trust, A2DP profile, volume and latency observations:
 - [ ] Boot with speaker absent: lighting operational, no queued thunder.

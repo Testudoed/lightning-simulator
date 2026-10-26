@@ -33,6 +33,8 @@ gap_max = 0.3
 
 [audio]
 enabled = true
+output = "wired" # wired: Pi headphone jack; bluetooth: paired A2DP speaker
+device = "" # Wired only: empty auto-detects the Pi jack; otherwise exact PipeWire sink name
 # Keep the bundled recordings, or replace each value with your own file path.
 background = "resource:background_storm.mp3"
 thunder = "resource:lightning_strike.wav"
@@ -41,8 +43,8 @@ thunder = "resource:lightning_strike.wav"
 # Background streams continuously; thunder plays alongside it when triggered.
 background_volume = 0.35
 thunder_volume = 0.65
-sink = "lightning_mix" # Must match the PipeWire drop-in.
-speaker_address = "" # Commission with your A2DP speaker's XX:XX:XX:XX:XX:XX address.
+sink = "lightning_mix" # Bluetooth only: must match the optional PipeWire drop-in.
+speaker_address = "" # Bluetooth only: paired/trusted A2DP speaker's XX:XX:XX:XX:XX:XX address.
 reconnect_seconds = 5.0
 command_timeout = 3.0
 

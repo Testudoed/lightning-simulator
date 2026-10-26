@@ -1,4 +1,4 @@
-"""Bounded, asynchronous BlueZ/PipeWire recovery; never replays missed thunder."""
+"""Wired output by default, with optional Bluetooth routing and bounded recovery."""
 
 import asyncio
 import json
@@ -50,6 +50,26 @@ def speaker_sink(sinks, address):
     return None
 
 
+def wired_sink(sinks, device=""):
+    if device:
+        return next((sink["name"] for sink in sinks if sink.get("name") == device), None)
+    for sink in sinks:
+        name = sink.get("name", "")
+        props = sink.get("properties", {})
+        identity = " ".join(
+            str(props.get(key, ""))
+            for key in (
+                "api.alsa.card.name",
+                "alsa.card_name",
+                "alsa.name",
+                "node.nick",
+            )
+        ).lower()
+        if name.startswith("alsa_output.") and "bcm2835 headphones" in identity:
+            return name
+    return None
+
+
 def owned_loopbacks(modules, sink):
     return [
         module
@@ -59,7 +79,7 @@ def owned_loopbacks(modules, sink):
     ]
 
 
-class BluetoothRouter:
+class AudioRouter:
     def __init__(self, config: AudioConfig, audio: PygameAudio, runner=command):
         self.config, self.audio, self.runner = config, audio, runner
         self.last_error = None
@@ -71,17 +91,29 @@ class BluetoothRouter:
         for module in owned_loopbacks(modules, self.config.sink):
             await self.call("pactl", "unload-module", str(module["index"]))
 
+    def ensure_audio(self, sink):
+        if self.audio.started and (self.audio.output_sink != sink or not self.audio.healthy()):
+            log.warning("Audio output changed or stream lost; reinitializing background")
+            self.audio.close()
+        self.audio.start(sink)
+
     async def check(self):
         sinks = json.loads(await self.call("pactl", "--format=json", "list", "sinks"))
+        if self.config.output == "wired":
+            target = wired_sink(sinks, self.config.device)
+            if target is None:
+                self.audio.close()
+                requested = self.config.device or "Pi headphone jack (bcm2835 Headphones)"
+                raise RuntimeError(f"Wired audio output not found: {requested}")
+            self.ensure_audio(target)
+            self.audio.set_connected(True)
+            return
         modules = json.loads(await self.call("pactl", "--format=json", "list", "modules"))
         if not any(s.get("name") == self.config.sink for s in sinks):
             raise RuntimeError(
                 f"Missing persistent sink {self.config.sink}; install PipeWire drop-in"
             )
-        if self.audio.started and not self.audio.healthy():
-            log.warning("Audio server stream lost; reinitializing background after server recovery")
-            self.audio.close()
-        self.audio.start()
+        self.ensure_audio(self.config.sink)
         target = (
             speaker_sink(sinks, self.config.speaker_address)
             if self.config.speaker_address
@@ -118,7 +150,7 @@ class BluetoothRouter:
         self.audio.set_connected(True)
 
     async def run(self):
-        if not self.config.speaker_address:
+        if self.config.output == "bluetooth" and not self.config.speaker_address:
             log.warning("No Bluetooth speaker address configured; background will run silently")
         while True:
             started = time.monotonic()
@@ -139,6 +171,8 @@ class BluetoothRouter:
 
     async def close(self):
         self.audio.set_connected(False)
+        if self.config.output == "wired":
+            return
         try:
             modules = json.loads(await self.call("pactl", "--format=json", "list", "modules"))
             await self.remove_routes(modules)
