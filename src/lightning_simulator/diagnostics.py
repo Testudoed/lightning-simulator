@@ -16,7 +16,7 @@ from lightning_simulator.audio import PygameAudio, resolve_audio_file
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import GPIOTrigger, debounce
 from lightning_simulator.leds import SPILEDs
-from lightning_simulator.prop import GPIOProp, SimProp
+from lightning_simulator.lights import GPIOLights, SimLights
 from lightning_simulator.routing import AudioRouter, command, wired_sink
 
 log = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ async def component_test(config, component, duration):
             )
             from lightning_simulator.audio import SilentAudio
 
-            controller = Controller(config, leds, SilentAudio(), SimProp())
+            controller = Controller(config, leds, SilentAudio(), SimLights())
             try:
                 async with asyncio.timeout(duration):
                     await controller.flashes()
@@ -123,10 +123,10 @@ async def component_test(config, component, duration):
             finally:
                 await controller.stop()
         elif component == "relay":
-            if not config.prop.enabled:
-                raise ValueError("Set prop.enabled=true after installing the relay to test it")
-            prop = open_device(devices, GPIOProp(config.pins.chip, config.pins.relay))
-            prop.set_active(True)
+            if not config.lights.enabled:
+                raise ValueError("Set lights.enabled=true after installing the relay to test it")
+            lights = open_device(devices, GPIOLights(config.pins.chip, config.pins.relay))
+            lights.set_active(True)
             await asyncio.sleep(duration)
         elif component == "input":
             motion = config.trigger.mode == "motion"

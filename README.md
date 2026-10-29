@@ -2,7 +2,7 @@
 
 Debian 13 Trixie, Python 3.13 and uv. One unprivileged application controls 120
 SPI LEDs, streams background storm audio, mixes the supplied thunder recording,
-and optionally forwards a trigger to a PicoSTORM through a relay module.
+and optionally switches 12 V Ghostlight spotlights through a relay module.
 
 **Start with the [standalone LED compatibility spike](docs/led-spike.md).** Test
 BCM10 direct 3.3 V data with the existing 5 V / 10 A LED supply before accepting
@@ -17,22 +17,36 @@ uv run lightning-simulator simulate --mode hold --duration 8
 uv run lightning-simulator simulate --mode toggle --duration 8
 ```
 
-Simulation uses fake LEDs, inputs, prop output and audio, and skips PIR warmup.
+Simulation uses fake LEDs, inputs, spotlight output and audio, and skips PIR warmup.
 It works on a workstation without the Pi extra. All imports are safe without
 hardware. Running `lightning-simulator` with no subcommand starts the real app.
 
-| Mode | Local lightning and thunder | PicoSTORM relay when enabled |
+| Mode | Trigger | Spotlight state after the final flash |
 |---|---|---|
-| `motion` | One sequence per new detection. A falling PIR level lets the sequence finish. Busy detections are dropped. | Follows every PIR transition after warmup/arming, including busy detections. |
-| `hold` | One sequence per press. Release cancels it immediately. Holding does not repeat. | Active until release, even after local playback finishes. |
-| `toggle` | First press starts one sequence; next press stops it if still playing. | Remains latched until the next press, even after playback finishes. |
+| `motion` | One sequence per new detection. Busy detections are dropped. | Follows the current PIR level. |
+| `momentary` (or `hold`) | Press starts one sequence. Holding does not repeat. | On while the button is held; release turns off. |
+| `toggle` | First press starts one sequence and latches lights on; next press unlatches. | On until toggled off. |
 
-A sequence remains busy until both the configured strikes and thunder finish. Button
-stops clear LEDs, stop the dedicated thunder channel and release the relay.
-Background audio keeps its position. No input events queue a later sequence.
-On every process start outputs are inactive and an inactive input is required
-before arming; toggle state is never persisted. Buttons use a stable 50 ms
-software debounce; motion uses a configurable 60 s warmup.
+Button releases and toggle-off presses **never interrupt lightning or thunder**.
+During the strikes, spotlights follow the full-strip flashes: off during the dim
+trail and gaps, on at full flash. These flashes continue even if the actor has
+already released the button or toggled off. Immediately after the final flash,
+the spotlights adopt the current button/latch state, without waiting for thunder
+or a final dark gap. The addressable strip returns to black.
+
+A sequence remains busy until both strikes and thunder finish. Busy presses can
+change the desired spotlight state but never queue or restart lightning.
+Background audio keeps its position. On process start, outputs are inactive and
+an inactive input is required before arming; toggle state is never persisted.
+Buttons use a stable 50 ms software debounce; motion has a configurable 60 s warmup.
+Shutdown and device failures still stop effects and release outputs.
+
+Enable the installed relay with `[lights] enabled = true` in TOML, and set
+`trigger.mode = "toggle"` or `"momentary"` for the actor button. The old `[prop]`
+section is replaced by `[lights]`; remove it when upgrading. PicoSTORM forwarding
+has been removed. Keep `pins.relay = 23` for the existing GPIO wiring.
+The spotlight's **12 V supply is separate from the strip's 5 V supply**; see the
+[relay wiring](docs/deployment.md#gpio-spi-access-and-wiring).
 
 Each lightning strike **grows a dim, continuously lit path from top to bottom**.
 When the path reaches the bottom, the whole strip flashes at full configured
@@ -123,8 +137,7 @@ The [deployment guide](docs/deployment.md) covers the Pi, headless Bluetooth,
 user service, hardware wiring and bounded component tests. The
 [commissioning checklist](docs/commissioning.md) records acceptance results.
 Defaults are motion mode, wired audio, full configured LED brightness, 0.35
-background volume, 0.65 thunder volume and PicoSTORM forwarding **disabled**.
-PicoSTORM's audio remains independently configured.
+background volume, 0.65 thunder volume and spotlight output **disabled**.
 
 Development checks:
 

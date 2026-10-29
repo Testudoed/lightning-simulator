@@ -3,7 +3,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class GPIOProp:
+class GPIOLights:
     """Active-high relay module; request the line atomically at its inactive value."""
 
     def __init__(self, chip, pin):
@@ -17,7 +17,7 @@ class GPIOProp:
 
         self.request = gpiod.request_lines(
             self.chip,
-            consumer="lightning-picostorm",
+            consumer="lightning-spotlights",
             config={
                 self.pin: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
@@ -33,7 +33,7 @@ class GPIOProp:
         if self.request is not None:
             self.request.set_value(self.pin, Value.ACTIVE if active else Value.INACTIVE)
         if active != self.active:
-            log.info("PicoSTORM relay %s", "active" if active else "inactive")
+            log.info("Spotlight relay %s", "active" if active else "inactive")
         self.active = active
 
     def close(self):
@@ -45,7 +45,7 @@ class GPIOProp:
                 self.request = None
 
 
-class SimProp:
+class SimLights:
     def __init__(self):
         self.active = False
         self.history = []
@@ -61,8 +61,8 @@ class SimProp:
         self.set_active(False)
 
 
-class DisabledProp:
-    """Disabled forwarding owns no GPIO and retains no event history."""
+class DisabledLights:
+    """Disabled light output owns no GPIO and retains no event history."""
 
     def start(self):
         pass

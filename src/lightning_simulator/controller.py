@@ -1,4 +1,4 @@
-"""Edge-triggered state machine; forwarding is independent of local playback."""
+"""Uninterrupted lightning with synchronized, actor-controlled spotlights."""
 
 import asyncio
 import logging
@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 
 from lightning_simulator.config import Config
 from lightning_simulator.effects import leader_frame, leader_steps
-from lightning_simulator.interfaces import Audio, InputEvent, LEDs, PropOutput
+from lightning_simulator.interfaces import Audio, InputEvent, LEDs, LightOutput
 from lightning_simulator.leds import WHITE
 
 log = logging.getLogger(__name__)
@@ -20,22 +20,24 @@ class Controller:
         config: Config,
         leds: LEDs,
         audio: Audio,
-        prop: PropOutput,
+        lights: LightOutput,
         *,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable] = asyncio.sleep,
         uniform: Callable[[float, float], float] = random.uniform,
     ):
-        self.config, self.leds, self.audio, self.prop = config, leds, audio, prop
+        self.config, self.leds, self.audio, self.lights = config, leds, audio, lights
         self.now, self.sleep, self.uniform = now, sleep, uniform
         warmup = config.trigger.warmup_seconds if config.trigger.mode == "motion" else 0
         self.ready_at = now() + warmup
         self.active = None
         self.armed = False
         self.latched = False
+        self.flashes_running = False
+        self.flash_active = False
         self.effect_task = None
         self.failed = asyncio.get_running_loop().create_future()
-        self.prop.set_active(False)
+        self.lights.set_active(False)
         self.leds.clear()
 
     @property
@@ -54,26 +56,29 @@ class Controller:
             return
         log.info("Input %s at %.6f", "active" if event.active else "inactive", event.timestamp)
         mode = self.config.trigger.mode
-        if mode in ("motion", "hold"):
-            self.prop.set_active(event.active)
+        if mode in ("motion", "hold", "momentary"):
+            self.latched = event.active
             if event.active:
                 if not self.busy:
                     self.start_effect()
                 else:
                     log.info("Local retrigger ignored while busy")
-            elif mode == "hold":
-                await self.stop()
         elif event.active:
             self.latched = not self.latched
-            self.prop.set_active(self.latched)
             log.info("Toggle latch %s", self.latched)
             if self.latched:
                 self.start_effect()
-            else:
-                await self.stop()
+        self.update_lights()
+
+    def update_lights(self):
+        # During strikes, full flashes override the actor's steady-light request.
+        self.lights.set_active(self.flash_active if self.flashes_running else self.latched)
 
     def start_effect(self):
         if not self.busy:
+            self.flashes_running = True
+            self.flash_active = False
+            self.update_lights()
             log.info("Sequence started")
             self.effect_task = asyncio.create_task(self.sequence(), name="lightning-effect")
             self.effect_task.add_done_callback(self._effect_finished)
@@ -91,16 +96,27 @@ class Controller:
 
     async def flashes(self):
         effect = self.config.effect
+        self.flashes_running = True
         try:
-            for _ in range(effect.flashes):
+            for strike in range(effect.flashes):
                 if effect.animation == "travel":
                     await self.travel()
                 self.leds.fill(WHITE)
+                self.flash_active = True
+                self.update_lights()
                 await self.sleep(self.uniform(effect.flash_min, effect.flash_max))
                 self.leds.clear()
-                await self.sleep(self.uniform(effect.gap_min, effect.gap_max))
+                self.flash_active = False
+                if strike < effect.flashes - 1:
+                    self.update_lights()
+                    await self.sleep(self.uniform(effect.gap_min, effect.gap_max))
         finally:
-            self.leds.clear()
+            self.flashes_running = False
+            self.flash_active = False
+            try:
+                self.leds.clear()
+            finally:
+                self.update_lights()
 
     async def travel(self):
         effect = self.config.effect
@@ -128,14 +144,18 @@ class Controller:
             async with asyncio.TaskGroup() as group:
                 group.create_task(self.flashes())
                 group.create_task(self.audio.thunder())
+        except BaseException:
+            self.latched = False
+            self.lights.set_active(False)
+            raise
         finally:
             self.audio.stop_thunder()
 
     async def stop(self):
         self.latched = False
-        # Release external prop before awaiting local cancellation.
+        # Release the light relay before awaiting local cancellation.
         try:
-            self.prop.set_active(False)
+            self.lights.set_active(False)
         finally:
             try:
                 if self.effect_task is not None:

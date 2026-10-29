@@ -11,7 +11,7 @@ from lightning_simulator.config import Config
 from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import GPIOTrigger, SimTrigger, debounce
 from lightning_simulator.leds import SimLEDs, SPILEDs
-from lightning_simulator.prop import DisabledProp, GPIOProp, SimProp
+from lightning_simulator.lights import DisabledLights, GPIOLights, SimLights
 from lightning_simulator.routing import AudioRouter
 
 log = logging.getLogger(__name__)
@@ -43,13 +43,13 @@ async def run_application(config: Config, *, simulate=False, duration=None):
         log.info("Simulation uses fake hardware/audio; PIR warmup set to zero")
         config = replace(config, trigger=replace(config.trigger, warmup_seconds=0))
     with ExitStack() as devices:
-        prop = open_device(
+        lights = open_device(
             devices,
-            GPIOProp(config.pins.chip, config.pins.relay)
-            if config.prop.enabled and not simulate
-            else SimProp()
+            GPIOLights(config.pins.chip, config.pins.relay)
+            if config.lights.enabled and not simulate
+            else SimLights()
             if simulate
-            else DisabledProp(),
+            else DisabledLights(),
         )
         leds = open_device(
             devices,
@@ -92,7 +92,7 @@ async def run_application(config: Config, *, simulate=False, duration=None):
                 button=config.trigger.mode != "motion",
             ),
         )
-        controller = Controller(config, leds, audio, prop)
+        controller = Controller(config, leds, audio, lights)
         async with AsyncExitStack() as tasks:
             router = None
             if not simulate and config.audio.enabled:
@@ -117,9 +117,9 @@ async def run_application(config: Config, *, simulate=False, duration=None):
                 tasks.push_async_callback(cancel, timer)
                 waiting.add(timer)
             log.info(
-                "Controller running: mode=%s forwarding=%s",
+                "Controller running: mode=%s lights=%s",
                 config.trigger.mode,
-                config.prop.enabled,
+                config.lights.enabled,
             )
             done, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
             if controller.failed in done:

@@ -94,20 +94,37 @@ while GPIO is unowned; verify the module's own bias and power-up behavior. Never
 drive a bare relay coil from GPIO. Power the module according to its rating;
 its control input must not source 5 V into the Pi.
 
-The relay's isolated **COM and normally-open** contacts connect PicoSTORM **IN**
-and **GND / minus**. Use only the low-voltage trigger terminal; leave its positive
-terminal unused. The dry contacts do not require connecting PicoSTORM ground to
-the Pi. The [PicoFX/PicoSTORM quick-start guide](https://www.frightideas.com/downloads/docs/PicoFX_Quick_Start_v115a.pdf)
-documents the trigger connection and `_MOMENT` option. Create the empty `_MOMENT`
-folder in the input scene folder (normally `INPUT1`). Confirm the SD card layout
-against your firmware, because older manuals use an `FI-115` parent folder.
-Ensure the desired triggered scene is in INPUT1 rather than only an always-looping
-AMBIENT scene. In `_MOMENT` mode release ends the input scene. PicoSTORM sound,
-ambient behavior and mains lighting remain separately configured on that unit.
+The relay contacts switch the Ghostlight supply directly:
 
-Start with `prop.enabled=false`. Install and verify the relay's inactive boot
-state, then set it true for the bounded relay test. Keep it disabled until
-commissioning is complete.
+- Separate regulated **12 V DC supply positive** → relay **COM**.
+- Relay **NO** (normally open) → spotlight positive (or splitter positive).
+- Spotlight negative → 12 V supply negative.
+
+Verify barrel connector polarity against the light/supply markings. Keep 12 V
+off the Pi header, GPIO, relay logic terminals and 5 V addressable strip supply.
+The isolated contact circuit does not require joining its 12 V negative to Pi
+ground. The Teyleten B07XGZSYJV module's logic/coil supply is **3 V/3.3 V**, not
+12 V or the strip's 5 V. Use its marked terminals/jumper instructions and a supply
+rated for the coil current; GPIO23 drives only the input, never the coil supply.
+
+The [Ghostlight Mini specifications](https://www.halloweenfxprops.com/ghostlight-mini-12-volt-mini-spotlight/)
+list 12 V and 16 mA per light; size the supply for the connected count with margin.
+Use COM/NO so lights are off with the relay inactive. PicoSTORM is no longer used.
+
+Start with `lights.enabled=false`. Verify inactive boot behavior, then enable
+`[lights] enabled=true` for the bounded relay test. Replace any old `[prop]`
+configuration table with `[lights]`. Select `trigger.mode="toggle"` or
+`trigger.mode="momentary"` (`hold` remains an alias) for the actor button.
+Releases and toggle-off presses never cancel lightning/thunder. The spotlights
+flash with the full-strip peak, then adopt the current held/toggled state
+immediately after the last flash. If turned off during the sequence, the
+remaining flashes still run, and the spotlights finish off.
+
+Software commands the relay immediately after sending the full-white SPI frame.
+A mechanical relay adds operating/release delay; verify alignment and clean
+switching at the shortest configured flash/gap times on the actual hardware.
+There is no PWM or dimming through the relay. A suitable DC MOSFET switch can
+use the same active-high output if faster switching is needed later.
 
 ## Wired audio (default)
 
@@ -149,7 +166,7 @@ and the powered speakers' own volume also apply.
 then stops. A wired output outage or audio-server failure is logged while
 lighting continues. Commands remain bounded, recovery retries every five seconds
 by default, and unavailable thunder is dropped. Reinitializing a lost audio
-device/server restarts the background stream; ordinary triggers and button stops
+device/server restarts the background stream; ordinary triggers and button changes
 never restart it.
 
 ## Optional Bluetooth and persistent audio sink
@@ -250,7 +267,7 @@ The command clears LEDs on completion or interruption; its duration is an upper
 bound, so increase it when previewing a slower sequence. See the
 [effect configuration](../config.example.toml) for all settings.
 
-The relay test requires `prop.enabled=true`. Each command opens only its selected
+The relay test requires `lights.enabled=true`. Each command opens only its selected
 component and has a 120-second maximum. The audio test streams background and
 plays one thunder when a route becomes available. Ctrl-C/SIGTERM runs cleanup.
 `doctor` is read-only; a successful doctor cannot prove visual/audio/electrical
@@ -273,4 +290,4 @@ thunder, releases the relay and closes GPIO requests before exit. Initialization
 failures clean every device already opened, and a service failure restarts after
 five seconds. The relay's hardware inactive default remains essential while the
 process is absent. Complete [commissioning.md](commissioning.md), including an
-unattended reboot, before enabling PicoSTORM forwarding for use.
+unattended reboot, before enabling spotlight control for use.

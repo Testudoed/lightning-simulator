@@ -46,7 +46,7 @@ def lightning_simulator(ctx, config, verbose):
 
 
 @lightning_simulator.command()
-@click.option("--mode", type=click.Choice(["motion", "hold", "toggle"]))
+@click.option("--mode", type=click.Choice(["motion", "hold", "momentary", "toggle"]))
 @click.option("--duration", type=click.FloatRange(0.1, 120), default=8, show_default=True)
 @click.pass_obj
 def simulate(config, mode, duration):

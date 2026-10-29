@@ -7,7 +7,7 @@ not substitute for commissioning on the Raspberry Pi.
 - `uv sync --extra pi` built rpi-ws281x 5.0.0 and installed gpiod 2.5.0 and pygame
   2.6.1. Driver signatures/constants were inspected without opening hardware.
 - `pytest -q`: 94 passing tests using fake hardware, controlled time and fake audio.
-  Coverage includes all modes, busy behavior, independent PIR forwarding, startup
+  Coverage includes all modes, busy behavior, spotlight flash synchronization and uninterrupted button playback, startup
   warmup/held inputs, stable debounce, cancellation, output cleanup after failures,
   stale GPIO fd readiness, and Bluetooth/audio recovery without background restarts.
   Lightning tests cover growth in both directions, the path remaining lit until

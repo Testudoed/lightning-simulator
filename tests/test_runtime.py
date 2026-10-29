@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from lightning_simulator import app
 from lightning_simulator.cli import lightning_simulator
-from lightning_simulator.config import Config, PropConfig, load_config
+from lightning_simulator.config import Config, LightConfig, load_config
 from lightning_simulator.inputs import debounce
 from lightning_simulator.interfaces import InputEvent
 
@@ -21,7 +21,7 @@ from lightning_simulator.interfaces import InputEvent
         "[leds]\ncount=1.5",
         "[pins]\nled=18",
         "[pins]\npir=10",
-        '[prop]\nenabled="yes"',
+        '[lights]\nenabled="yes"',
         "[audio]\nbackground_volume=1.1",
         '[audio]\nspeaker_address="invalid"',
         '[audio]\noutput="invalid"',
@@ -53,7 +53,7 @@ def test_invalid_config_fails_before_hardware(tmp_path, text):
 
 def test_config_paths_and_safe_defaults(tmp_path):
     defaults = load_config()
-    assert defaults.trigger.mode == "motion" and not defaults.prop.enabled
+    assert defaults.trigger.mode == "motion" and not defaults.lights.enabled
     assert defaults.trigger.debounce_ms == 50 and defaults.trigger.warmup_seconds == 60
     assert defaults.effect.animation == "travel" and defaults.effect.direction == "forward"
     assert defaults.effect.flashes == 3
@@ -78,7 +78,7 @@ def test_partial_startup_failure_clears_all_initialized_hardware(monkeypatch):
         def close(self):
             calls.append((self.name, "inactive/closed"))
 
-    class Prop(Device):
+    class Lights(Device):
         pass
 
     class LEDs(Device):
@@ -89,19 +89,19 @@ def test_partial_startup_failure_clears_all_initialized_hardware(monkeypatch):
             super().start()
             raise RuntimeError("input request failed")
 
-    monkeypatch.setattr(app, "GPIOProp", Prop)
+    monkeypatch.setattr(app, "GPIOLights", Lights)
     monkeypatch.setattr(app, "SPILEDs", LEDs)
     monkeypatch.setattr(app, "GPIOTrigger", Input)
-    config = replace(Config(), prop=PropConfig(enabled=True))
+    config = replace(Config(), lights=LightConfig(enabled=True))
     with pytest.raises(RuntimeError, match="input request failed"):
         asyncio.run(app.run_application(config))
     assert calls == [
-        ("Prop", "start"),
+        ("Lights", "start"),
         ("LEDs", "start"),
         ("Input", "start"),
         ("Input", "inactive/closed"),
         ("LEDs", "inactive/closed"),
-        ("Prop", "inactive/closed"),
+        ("Lights", "inactive/closed"),
     ]
 
 
@@ -127,6 +127,7 @@ def test_cli_simulation_and_doctor_without_pi_libraries():
         ["--help"],
         ["doctor", "--simulate"],
         ["simulate", "--mode", "toggle", "--duration", "0.1"],
+        ["simulate", "--mode", "momentary", "--duration", "0.1"],
     ):
         result = runner.invoke(lightning_simulator, args)
         assert result.exit_code == 0, result.output

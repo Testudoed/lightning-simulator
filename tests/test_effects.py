@@ -8,7 +8,7 @@ from lightning_simulator.config import Config, EffectConfig
 from lightning_simulator.controller import Controller
 from lightning_simulator.effects import leader_frame, leader_steps
 from lightning_simulator.leds import BLACK, WHITE, SimLEDs
-from lightning_simulator.prop import SimProp
+from lightning_simulator.lights import SimLights
 
 DIM = (64, 64, 64)
 
@@ -67,7 +67,7 @@ def controller(effect, leds, clock):
         replace(Config(), effect=effect),
         leds,
         SilentAudio(),
-        SimProp(),
+        SimLights(),
         now=lambda: clock.now,
         sleep=clock.sleep,
         uniform=lambda low, high: low,
@@ -93,7 +93,7 @@ def test_full_brightness_starts_after_reaching_bottom_then_blackout(seconds):
         assert blackout == [BLACK] * 120
         assert blackout_at == pytest.approx(seconds + effect.flash_min)
         assert leds.frame == [BLACK] * 120
-        assert clock.now == pytest.approx(seconds + effect.flash_min + effect.gap_min)
+        assert clock.now == pytest.approx(seconds + effect.flash_min)
 
     asyncio.run(scenario())
 
@@ -116,7 +116,7 @@ def test_default_three_strikes_repeat_growth_peak_and_blackout():
                 effect.gap_min
             )
         assert leds.frame == [BLACK] * 120
-        assert clock.now == pytest.approx(3 * (0.15 + 0.05 + 0.05))
+        assert clock.now == pytest.approx(3 * (0.15 + 0.05) + 2 * 0.05)
 
     asyncio.run(scenario())
 
@@ -196,6 +196,32 @@ def test_whole_strip_flash_remains_selectable():
         await c.flashes()
         assert leds.frames[0][1] == [WHITE] * 120
         assert leds.frame == [BLACK] * 120
-        assert clock.now == pytest.approx(effect.flash_min + effect.gap_min)
+        assert clock.now == pytest.approx(effect.flash_min)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("direction", ["forward", "reverse"])
+def test_spotlights_wait_for_full_strip_peak_after_trail(direction):
+    async def scenario():
+        clock = Clock()
+        leds = RecordingLEDs(clock)
+        effect = EffectConfig(flashes=2, direction=direction)
+        c = controller(effect, leds, clock)
+        observations = []
+        original_sleep = c.sleep
+
+        async def observe(seconds):
+            observations.append((leds.frame, c.lights.active))
+            await original_sleep(seconds)
+
+        c.sleep = observe
+        c.latched = True
+        await c.flashes()
+        assert any(frame == [DIM] * 120 for _, frame in leds.frames)
+        assert sum(frame == [WHITE] * 120 for frame, _ in observations) == 2
+        for frame, active in observations:
+            assert active is (frame == [WHITE] * 120)
+        assert c.lights.active and leds.frame == [BLACK] * 120
 
     asyncio.run(scenario())

@@ -1,6 +1,6 @@
 # Copy to ~/.config/lightning-simulator/config.toml on the Pi.
 [trigger]
-mode = "motion" # motion, hold, toggle; exactly one input is requested
+mode = "motion" # motion, momentary (hold alias), toggle; exactly one input is requested
 warmup_seconds = 60.0 # PIR only; inactive input required before arming
 # Button levels must remain stable for this long before changing state.
 debounce_ms = 50.0
@@ -48,5 +48,5 @@ speaker_address = "" # Bluetooth only: paired/trusted A2DP speaker's XX:XX:XX:XX
 reconnect_seconds = 5.0
 command_timeout = 3.0
 
-[prop]
+[lights]
 enabled = false # Enable only after the relay is installed and tested.

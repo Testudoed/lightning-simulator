@@ -60,7 +60,7 @@ class AudioConfig:
 
 
 @dataclass(frozen=True)
-class PropConfig:
+class LightConfig:
     enabled: bool = False
 
 
@@ -71,11 +71,11 @@ class Config:
     leds: LEDConfig = field(default_factory=LEDConfig)
     effect: EffectConfig = field(default_factory=EffectConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
-    prop: PropConfig = field(default_factory=PropConfig)
+    lights: LightConfig = field(default_factory=LightConfig)
 
     def validate(self):
-        if self.trigger.mode not in ("motion", "hold", "toggle"):
-            raise ValueError("trigger.mode must be motion, hold or toggle")
+        if self.trigger.mode not in ("motion", "hold", "momentary", "toggle"):
+            raise ValueError("trigger.mode must be motion, hold, momentary or toggle")
         if self.pins.led != 10:
             raise ValueError("pins.led must be BCM10 for SPI0 MOSI on Pi 4")
         for name in ("led", "pir", "button", "relay"):
@@ -84,7 +84,7 @@ class Config:
                 raise ValueError(f"pins.{name} must be a BCM number 0..27")
         used = [10, 9, 11, 8, 7]  # SPI0 owns its bus, including CE pins.
         used.append(self.pins.pir if self.trigger.mode == "motion" else self.pins.button)
-        if self.prop.enabled:
+        if self.lights.enabled:
             used.append(self.pins.relay)
         if len(set(used)) != len(used):
             raise ValueError("Configured input/relay pins conflict with each other or SPI0")
@@ -150,7 +150,7 @@ def load_config(path: Path | None = None) -> Config:
         "leds": LEDConfig,
         "effect": EffectConfig,
         "audio": AudioConfig,
-        "prop": PropConfig,
+        "lights": LightConfig,
     }
     if unknown := data.keys() - section_types.keys():
         raise ValueError(f"Unknown configuration sections: {sorted(unknown)}")

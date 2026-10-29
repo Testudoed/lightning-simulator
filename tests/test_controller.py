@@ -8,7 +8,7 @@ from lightning_simulator.controller import Controller
 from lightning_simulator.inputs import Debouncer
 from lightning_simulator.interfaces import InputEvent
 from lightning_simulator.leds import BLACK, SimLEDs
-from lightning_simulator.prop import SimProp
+from lightning_simulator.lights import SimLights
 
 
 async def drain():
@@ -54,18 +54,18 @@ class GateAudio:
 
 
 def setup(mode="motion", warmup=0):
-    clock, leds, audio, prop = Clock(), SimLEDs(), GateAudio(), SimProp()
+    clock, leds, audio, lights = Clock(), SimLEDs(), GateAudio(), SimLights()
     config = replace(Config(), trigger=TriggerConfig(mode=mode, warmup_seconds=warmup))
     controller = Controller(
         config,
         leds,
         audio,
-        prop,
+        lights,
         now=lambda: clock.now,
         sleep=clock.sleep,
         uniform=lambda low, high: low,
     )
-    return controller, clock, leds, audio, prop
+    return controller, clock, leds, audio, lights
 
 
 async def event(controller, clock, active):
@@ -78,71 +78,82 @@ async def finish_flashes(clock):
         await clock.advance(0.05)
 
 
-def test_motion_edges_forward_while_busy_without_queue():
+@pytest.mark.parametrize("mode", ["hold", "momentary", "toggle"])
+def test_button_off_never_cancels_lightning_or_thunder(mode):
     async def scenario():
-        c, clock, leds, audio, prop = setup()
+        c, clock, leds, audio, lights = setup(mode)
         await event(c, clock, False)
         await event(c, clock, True)
-        assert c.busy and audio.plays == 1 and prop.active
+        assert c.busy and audio.plays == 1 and not lights.active
         await event(c, clock, False)
-        assert c.busy and not prop.active and not audio.cancelled
-        await event(c, clock, True)
-        assert prop.active and audio.plays == 1
+        if mode == "toggle":
+            await event(c, clock, True)
+        assert c.busy and not audio.cancelled and not c.latched
         await finish_flashes(clock)
-        assert leds.frame == [BLACK] * 120 and c.busy
+        assert c.busy and not lights.active and leds.frame == [BLACK] * 120
         audio.finished.set()
         await drain()
-        assert not c.busy
-        await event(c, clock, True)
-        assert audio.plays == 1  # held high cannot retrigger after playback
-        await event(c, clock, False)
-        await event(c, clock, True)
-        assert audio.plays == 2
+        assert not c.busy and not audio.cancelled
         await c.stop()
 
     asyncio.run(scenario())
 
 
-def test_hold_release_cancels_thunder_and_clears_outputs():
+@pytest.mark.parametrize("mode", ["motion", "hold", "momentary", "toggle"])
+def test_relay_matches_full_flashes_and_stays_on_before_thunder_finishes(mode):
     async def scenario():
-        c, clock, leds, audio, prop = setup("hold")
+        c, clock, leds, audio, lights = setup(mode)
+        c.config = replace(
+            c.config,
+            effect=replace(
+                c.config.effect,
+                animation="flash",
+                flashes=2,
+                flash_min=0.1,
+                flash_max=0.1,
+                gap_min=0.1,
+                gap_max=0.1,
+            ),
+        )
         await event(c, clock, False)
         await event(c, clock, True)
-        assert leds.frame[0] != BLACK and leds.frame[1:] == [BLACK] * 119 and prop.active
+        assert lights.active and leds.frame == [(255, 255, 255)] * 120
+        await clock.advance(0.1)
+        assert not lights.active and leds.frame == [BLACK] * 120
+        await clock.advance(0.1)
+        assert lights.active and leds.frame == [(255, 255, 255)] * 120
+        await clock.advance(0.1)
+        # Final flash transitions directly to steady light, with thunder still busy.
+        assert lights.active and leds.frame == [BLACK] * 120 and c.busy
+        assert not c.flashes_running and audio.plays == 1
         await event(c, clock, False)
-        assert not c.busy and audio.cancelled and not prop.active
-        assert leds.frame == [BLACK] * 120 and audio.background_starts == 1
+        if mode == "toggle":
+            assert lights.active
+            await event(c, clock, True)
+        assert not lights.active and c.busy and not audio.cancelled
+        await c.stop()
 
     asyncio.run(scenario())
 
 
-def test_toggle_survives_local_completion_and_next_press_turns_it_off():
+def test_busy_retriggers_do_not_queue_or_restart_lightning():
     async def scenario():
-        c, clock, leds, audio, prop = setup("toggle")
+        c, clock, leds, audio, lights = setup("toggle")
         await event(c, clock, False)
         await event(c, clock, True)
-        await event(c, clock, False)
-        audio.finished.set()
+        task = c.effect_task
+        for _ in range(2):
+            await event(c, clock, False)
+            await event(c, clock, True)
+        assert c.latched and c.effect_task is task and audio.plays == 1
         await finish_flashes(clock)
-        assert not c.busy and c.latched and prop.active
-        await event(c, clock, True)
-        assert not c.latched and not prop.active and audio.plays == 1
+        assert lights.active and c.busy
+        audio.finished.set()
+        await drain()
+        assert not c.busy and audio.plays == 1
         await c.stop()
-
-    asyncio.run(scenario())
-
-
-def test_toggle_stop_during_playback_and_restart_never_restores_latch():
-    async def scenario():
-        c, clock, leds, audio, prop = setup("toggle")
-        await event(c, clock, False)
-        await event(c, clock, True)
-        await event(c, clock, False)
-        await event(c, clock, True)
-        assert audio.cancelled and not c.busy and not prop.active
-        await c.stop()
-        fresh = Controller(c.config, leds, audio, prop, now=lambda: clock.now)
-        assert not fresh.latched and not fresh.armed and not prop.active
+        fresh = Controller(c.config, leds, audio, lights, now=lambda: clock.now)
+        assert not fresh.latched and not fresh.armed and not lights.active
         await event(fresh, clock, True)
         assert audio.plays == 1
         await fresh.stop()
@@ -150,18 +161,18 @@ def test_toggle_stop_during_playback_and_restart_never_restores_latch():
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("mode", ["motion", "hold", "toggle"])
+@pytest.mark.parametrize("mode", ["motion", "hold", "momentary", "toggle"])
 def test_startup_held_requires_inactive_before_arming(mode):
     async def scenario():
-        c, clock, leds, audio, prop = setup(mode)
+        c, clock, leds, audio, lights = setup(mode)
         await event(c, clock, True)
-        assert not c.armed and not c.busy and not prop.active
+        assert not c.armed and not c.busy and not lights.active
         await event(c, clock, False)
         assert c.armed and not c.busy
         await event(c, clock, True)
-        assert c.busy and prop.active
+        assert c.busy and not lights.active
         await c.stop()
-        assert not prop.active and leds.frame == [BLACK] * 120
+        assert not lights.active and leds.frame == [BLACK] * 120
 
     asyncio.run(scenario())
 
@@ -169,11 +180,11 @@ def test_startup_held_requires_inactive_before_arming(mode):
 @pytest.mark.parametrize("held_at_end", [True, False])
 def test_pir_warmup_ignores_activation_and_arms_only_when_inactive(held_at_end):
     async def scenario():
-        c, clock, leds, audio, prop = setup(warmup=60)
+        c, clock, leds, audio, lights = setup(warmup=60)
         await event(c, clock, False)
         await clock.advance(30)
         await event(c, clock, True)
-        assert not c.armed and not prop.active and audio.plays == 0
+        assert not c.armed and not lights.active and audio.plays == 0
         if not held_at_end:
             await event(c, clock, False)
         await clock.advance(30)
@@ -190,7 +201,7 @@ def test_pir_warmup_ignores_activation_and_arms_only_when_inactive(held_at_end):
 
 def test_busy_until_flashes_finish_even_after_thunder():
     async def scenario():
-        c, clock, leds, audio, prop = setup()
+        c, clock, leds, audio, lights = setup()
         audio.finished.set()
         await event(c, clock, False)
         await event(c, clock, True)
@@ -204,7 +215,7 @@ def test_busy_until_flashes_finish_even_after_thunder():
 
 def test_effect_failure_is_reported_and_audio_cancelled():
     async def scenario():
-        c, clock, leds, audio, prop = setup()
+        c, clock, leds, audio, lights = setup()
 
         def fail(colors):
             raise RuntimeError("SPI transfer failed")
@@ -240,14 +251,14 @@ def test_debounce_filters_bounce_and_short_presses_in_both_directions():
 
 def test_relay_release_error_still_cancels_thunder_and_blacks_out_leds():
     async def scenario():
-        c, clock, leds, audio, prop = setup("hold")
+        c, clock, leds, audio, lights = setup("hold")
         await event(c, clock, False)
         await event(c, clock, True)
 
         def fail(active):
             raise OSError("relay device unavailable")
 
-        prop.set_active = fail
+        lights.set_active = fail
         with pytest.raises(OSError, match="relay device unavailable"):
             await c.stop()
         assert audio.cancelled and not c.busy and leds.frame == [BLACK] * 120

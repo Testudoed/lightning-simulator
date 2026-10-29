@@ -30,5 +30,5 @@ class Audio(Protocol):
     def stop_thunder(self) -> None: ...
 
 
-class PropOutput(Protocol):
+class LightOutput(Protocol):
     def set_active(self, active: bool) -> None: ...

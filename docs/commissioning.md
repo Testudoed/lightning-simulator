@@ -28,30 +28,33 @@ A pass applies to the recorded setup and observations; it does not establish an
 electrical guarantee across other conditions. Require the shifter only when the
 comparison establishes it is needed.
 
-## Inputs and PicoSTORM
+## Inputs and spotlights
 
 - [ ] At boot, LED and relay outputs inactive; held button/PIR cannot trigger until inactive.
 - [ ] PIR warmup ignores activation; low at end arms, high at end requires a subsequent low.
 - [ ] Motion produces one sequence per new detection, no repeats while held high.
 - [ ] Motion ending lets the current sequence finish; busy retriggers do not queue.
-- [ ] PIR transitions still operate relay while local sequence is busy.
-- [ ] Hold press starts once; release clears LEDs, stops thunder and releases relay.
-- [ ] Toggle press starts once, release has no effect, next press stops/releases.
-- [ ] Toggle relay remains latched after flashes AND thunder finish; next press releases.
+- [ ] Spotlights stay dark during the trail/gaps and follow each full-strip flash.
+- [ ] Momentary/hold starts once; release never stops lightning or thunder.
+- [ ] Toggle starts once; next press changes spotlight latch without stopping playback.
+- [ ] Steady spotlight state begins immediately after the last flash, before thunder ends.
+- [ ] Release/toggle-off during a flash allows all remaining flashes, then finishes off.
+- [ ] Busy presses do not restart or queue lightning.
 - [ ] Switch bounce causes no extra presses; configured 50 ms default verified.
-- [ ] Background position is continuous through every button stop/start.
+- [ ] Background position is continuous through every button changes.
 - [ ] Relay module is active-high, 3.3 V-compatible, driven through its integrated driver.
-- [ ] Relay COM/NO connects only PicoSTORM IN/GND, and `_MOMENT` releases scene on stop.
+- [ ] Relay COM/NO switches the separate 12 V spotlight supply; polarity verified.
+- [ ] Relay logic uses its rated 3 V/3.3 V supply; 12 V stays off logic and Pi.
+- [ ] Mechanical relay timing checked at minimum flash/gap durations.
 - [ ] Relay inactive while Pi is unpowered, booting, stopped and restarting.
 - [ ] Service restart during each effect stage clears outputs and never restores toggle latch.
-- [ ] PicoSTORM audio and ambient configuration checked independently.
 
 ## Audio and unattended boot
 
 - Selected audio mode (`wired` by default, or `bluetooth`):
 - Wired device name, output volume and listening observations:
 - [ ] Wired mode uses the Pi jack with powered speakers, including with HDMI connected.
-- [ ] Wired background and thunder overlap audibly; trigger stops preserve background position.
+- [ ] Wired background and thunder overlap audibly; button changes preserve background position.
 - [ ] Wired test stops cleanly; missing output or audio-server failure leaves lighting operational.
 - [ ] Wired mode works without Bluetooth, a speaker address or a virtual sink.
 
@@ -66,4 +69,4 @@ For optional Bluetooth mode:
 - [ ] Commands time out without freezing input handling.
 - [ ] Reboot with no login: lingering user service, GPIO/SPI access and audio all work.
 - [ ] SIGTERM clears LEDs, stops triggered audio and releases relay promptly.
-- [ ] Final config archived; PicoSTORM forwarding enabled only after relay acceptance.
+- [ ] Final config archived; Spotlight control enabled only after relay acceptance.
