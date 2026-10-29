@@ -11,7 +11,7 @@ uv build
 ```
 
 The tests use fake hardware, controlled time and fake audio. They cover input
-modes, debounce, startup arming, busy triggers, uninterrupted lightning/thunder,
+modes, debounce, startup arming, busy triggers, actor-controlled lightning/thunder restarts,
 spotlight synchronization, effect frames, output cleanup and audio recovery.
 They do not measure physical relay timing or observe LED/audio output. Follow the
 [deployment guide](deployment.md) to install and check the actual hardware.

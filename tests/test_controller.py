@@ -40,14 +40,19 @@ class GateAudio:
         self.plays = self.stops = 0
         self.background_starts = 1
         self.cancelled = False
+        self.active_plays = self.max_active_plays = 0
 
     async def thunder(self):
         self.plays += 1
+        self.active_plays += 1
+        self.max_active_plays = max(self.max_active_plays, self.active_plays)
         try:
             await self.finished.wait()
         except asyncio.CancelledError:
             self.cancelled = True
             raise
+        finally:
+            self.active_plays -= 1
 
     def stop_thunder(self):
         self.stops += 1
@@ -136,27 +141,71 @@ def test_relay_matches_full_flashes_and_stays_on_before_thunder_finishes(mode):
     asyncio.run(scenario())
 
 
-def test_busy_retriggers_do_not_queue_or_restart_lightning():
+@pytest.mark.parametrize("mode", ["toggle", "hold", "momentary"])
+@pytest.mark.parametrize("phase", ["trail", "flash", "gap", "thunder"])
+def test_actor_retrigger_restarts_sequence_immediately(mode, phase):
     async def scenario():
-        c, clock, leds, audio, lights = setup("toggle")
+        c, clock, leds, audio, lights = setup(mode)
         await event(c, clock, False)
         await event(c, clock, True)
-        task = c.effect_task
-        for _ in range(2):
-            await event(c, clock, False)
+        old_task = c.effect_task
+        if phase == "thunder":
+            await finish_flashes(clock)
+            assert not c.flashes_running and c.busy and lights.active
+        elif phase in ("flash", "gap"):
+            for _ in range(40):
+                await clock.advance(0.01)
+                if c.flash_active:
+                    break
+            assert c.flash_active and lights.active
+            if phase == "gap":
+                await clock.advance(c.config.effect.flash_min)
+                assert c.flashes_running and not c.flash_active and not lights.active
+        # Off changes only the requested light state, leaving the old playback alive.
+        await event(c, clock, False)
+        if mode == "toggle":
             await event(c, clock, True)
-        assert c.latched and c.effect_task is task and audio.plays == 1
+            await event(c, clock, False)
+        assert not c.latched and c.effect_task is old_task and not audio.cancelled
+        # The next on press restarts from the first trail frame and replays thunder.
+        await event(c, clock, True)
+        assert old_task.cancelled() and c.effect_task is not old_task and c.busy
+        assert audio.plays == 2 and audio.active_plays == 1 and audio.max_active_plays == 1
+        assert c.latched and c.flashes_running and not lights.active
+        assert leds.frame[0] != BLACK and leds.frame[1:] == [BLACK] * 119
+        assert not c.failed.done() and audio.background_starts == 1
+        # Holding the same input level does not restart again.
+        await event(c, clock, True)
+        assert audio.plays == 2
         await finish_flashes(clock)
         assert lights.active and c.busy
         audio.finished.set()
         await drain()
-        assert not c.busy and audio.plays == 1
+        assert not c.busy and audio.plays == 2 and not c.failed.done()
         await c.stop()
+        assert not lights.active and audio.active_plays == 0
         fresh = Controller(c.config, leds, audio, lights, now=lambda: clock.now)
         assert not fresh.latched and not fresh.armed and not lights.active
         await event(fresh, clock, True)
-        assert audio.plays == 1
+        assert audio.plays == 2
         await fresh.stop()
+
+    asyncio.run(scenario())
+
+
+def test_motion_busy_retriggers_do_not_restart_or_queue():
+    async def scenario():
+        c, clock, leds, audio, lights = setup("motion")
+        await event(c, clock, False)
+        await event(c, clock, True)
+        old_task = c.effect_task
+        await event(c, clock, False)
+        await event(c, clock, True)
+        assert c.effect_task is old_task and audio.plays == 1 and not audio.cancelled
+        audio.finished.set()
+        await finish_flashes(clock)
+        assert not c.busy and audio.plays == 1
+        await c.stop()
 
     asyncio.run(scenario())
 

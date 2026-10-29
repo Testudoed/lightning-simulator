@@ -1,4 +1,4 @@
-"""Uninterrupted lightning with synchronized, actor-controlled spotlights."""
+"""Actor-triggered lightning restarts with synchronized spotlights."""
 
 import asyncio
 import logging
@@ -59,7 +59,9 @@ class Controller:
         if mode in ("motion", "hold", "momentary"):
             self.latched = event.active
             if event.active:
-                if not self.busy:
+                if mode != "motion":
+                    await self.restart_effect()
+                elif not self.busy:
                     self.start_effect()
                 else:
                     log.info("Local retrigger ignored while busy")
@@ -67,8 +69,17 @@ class Controller:
             self.latched = not self.latched
             log.info("Toggle latch %s", self.latched)
             if self.latched:
-                self.start_effect()
+                await self.restart_effect()
         self.update_lights()
+
+    async def restart_effect(self):
+        if self.busy:
+            log.info("Actor retrigger: restarting sequence")
+            # Finish old task cleanup before new playback can touch shared outputs.
+            requested_lights = self.latched
+            await self.stop()
+            self.latched = requested_lights
+        self.start_effect()
 
     def update_lights(self):
         # During strikes, full flashes override the actor's steady-light request.

@@ -282,13 +282,19 @@ Keep the rest of the example config, including its `[effect]` and `[audio]` tabl
 | `toggle` | First press starts lightning and latches lights on. Next press turns the latch off. Release has no effect. | On while latched; next press turns off. |
 | `momentary` / `hold` | Press starts lightning. Hold to keep the lights on afterward. | On while held; release turns off. |
 
-In both modes, button changes **never interrupt lightning or thunder**. During
+In both modes, releases and toggle-off presses **let lightning and thunder
+continue**. A new on press **immediately restarts both from the beginning**, even
+if the old sequence is still playing. In toggle mode, turn the latch off and
+press again to restart; in momentary/hold mode, release and press again. Holding
+the button does not repeat. The old playback is stopped before the new sequence
+starts, so thunder does not overlap itself; background audio keeps its position.
+During
 the sequence, the spotlights stay off for the dim trail, switch on with each
 full-strip flash and go off in the gaps. After the final flash, they immediately
 adopt the current held/latch state without waiting for thunder. If the actor
 already released or toggled off, the remaining flashes still play and the
-spotlights finish off. Busy presses change this desired state but do not restart
-or queue a lightning sequence. Each process start clears the toggle latch and
+spotlights finish off. New on presses restart immediately rather than queueing
+a sequence for later. Each process start clears the toggle latch and
 requires the button to be released before arming.
 
 The relay command follows the full-white LED frame. Its mechanical contacts

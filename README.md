@@ -32,8 +32,12 @@ already released the button or toggled off. Immediately after the final flash,
 the spotlights adopt the current button/latch state, without waiting for thunder
 or a final dark gap. The addressable strip returns to black.
 
-A sequence remains busy until both strikes and thunder finish. Busy presses can
-change the desired spotlight state but never queue or restart lightning.
+A sequence remains busy until both strikes and thunder finish. In button modes,
+a new on press immediately restarts lightning and thunder from the beginning,
+even while the previous sequence is busy. In toggle mode this is the press after
+toggling the lights off; in momentary/hold mode it is the next press after release.
+Off presses/releases let playback continue. Motion detections while busy are
+dropped. No mode queues a later sequence.
 Background audio keeps its position. On process start, outputs are inactive and
 an inactive input is required before arming; toggle state is never persisted.
 Buttons use a stable 50 ms software debounce; motion has a configurable 60 s warmup.
