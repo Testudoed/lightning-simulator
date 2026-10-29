@@ -1,65 +1,82 @@
-# Debian 13 Trixie deployment on Raspberry Pi 4B
+# Raspberry Pi 4B setup
 
-Use the existing Trixie installation and Python 3.13. This guide assumes the
-service user is `pi`, the checkout is `/home/pi/Workspace/lightning-simulator`,
-and uv is installed for that user. Adjust the service paths if your checkout
-lives elsewhere. Do the [LED spike](led-spike.md) before enabling the full service.
+This guide sets up Debian 13 Trixie, Python 3.13, two addressable LED strips
+(120 pixels total), an actor button, a relay switching Ghostlight Mini spotlights,
+and wired speakers. The Pi runs one application as an ordinary user.
 
-## Packages and code
+Commands assume the user is `pi` and the checkout is
+`/home/pi/Workspace/lightning-simulator`. Substitute your username in commands
+and use the same checkout location relative to your home, or edit the service's
+`WorkingDirectory` and `ExecStart` to match.
 
-Install the system audio stack, GPIO tools and optional source
-build requirements (ARM wheels may depend on OS/architecture):
+## 1. Install the application
+
+Install system dependencies:
 
 ```console
 sudo apt update
-sudo apt install git git-lfs python3.13 python3.13-dev build-essential swig pkg-config libgpiod-dev gpiod pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-ttf-dev libportmidi-dev libfreetype-dev libjpeg-dev libpng-dev
+sudo apt install curl ca-certificates git git-lfs python3.13 python3.13-dev build-essential swig pkg-config libgpiod-dev gpiod pipewire pipewire-pulse wireplumber pulseaudio-utils alsa-utils libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-ttf-dev libportmidi-dev libfreetype-dev libjpeg-dev libpng-dev
 ```
 
-As `pi`, in the checkout:
+If uv is not installed, use its [official installer](https://docs.astral.sh/uv/getting-started/installation/)
+as `pi`:
 
 ```console
+curl -LsSf https://astral.sh/uv/install.sh -o /tmp/lightning-uv-install.sh
+sh /tmp/lightning-uv-install.sh
+. "$HOME/.local/bin/env"
+```
+
+Clone the repository, or use your existing checkout:
+
+```console
+mkdir -p ~/Workspace
+cd ~/Workspace
+git clone https://github.com/Testudoed/lightning-simulator.git
+cd lightning-simulator
+git lfs install
 git lfs pull
 uv sync --locked --extra pi --no-dev
 mkdir -p ~/.config/lightning-simulator
 cp config.example.toml ~/.config/lightning-simulator/config.toml
 ```
 
-To use your own recordings, edit the `[audio]` table in that config file:
+Copy the example only for a new installation; preserve your existing config on
+upgrades. Replace its old `[prop]` table with `[lights]` if present. Git LFS must
+materialize the bundled audio before use. The repository selects Python 3.13;
+`uv sync --locked` installs the pinned dependencies and the `.venv` used by the service.
 
-```toml
-[audio]
-background = "/home/pi/audio/rain.mp3"
-thunder = "~/audio/thunder.wav"
-```
-
-Paths can be absolute, start with `~/`, or be relative to the TOML file's
-directory. For example, `audio/rain.mp3` here resolves beneath
-`~/.config/lightning-simulator/`, rather than the checkout. Keep
-`resource:background_storm.mp3` / `resource:lightning_strike.wav` to use the
-supplied recordings. `doctor --simulate` checks the selected files without GPIO
-or audio hardware; `component-test audio` checks actual playback. Audio files
-are not required when `audio.enabled=false`. Restart the application or user
-service after editing the file selections.
-
-`.python-version` selects 3.13 and `uv.lock` pins the dependency graph. Keep both
-in version control. Deployment uses the lock without resolving new versions.
-The Pi extra uses `gpiod` 2.x, `rpi_ws281x` and pygame. SPI LEDs require neither
-root nor a separate LED service.
-
-For an upgrade, first disable the previous **system** services, if installed:
+If upgrading from the old system services, stop them before using this version:
 
 ```console
 sudo systemctl disable --now led_service.service lightning_simulation.service
 ```
 
-Remove their old unit files after migration and run `sudo systemctl daemon-reload`.
-Do not run diagnostics and the application simultaneously; both would drive the
-same SPI LEDs. The old world-writable socket and `rpi-lgpio` are retired.
+Only run that command if those old system units are installed. This guide uses
+a **user** service instead. Never run the service, a foreground controller and
+hardware component tests at the same time: they use the same GPIO/SPI devices.
 
-## GPIO/SPI access and wiring
+## 2. Configure SPI, audio and device permissions
 
-Set `/boot/firmware/config.txt` as described in the spike guide. For Debian
-installations without existing device-group rules:
+Edit `/boot/firmware/config.txt`. Add or update these settings in the indicated
+sections, ensuring later entries do not override them:
+
+```ini
+[all]
+dtparam=spi=on
+dtparam=audio=on
+
+[pi4]
+core_freq=500
+core_freq_min=500
+```
+
+The [LED driver's Pi 4 SPI instructions](https://github.com/jgarff/rpi_ws281x#limitations)
+require a fixed core clock for stable LED signaling. Dedicate SPI0 to the LED
+strips; other SPI peripherals cannot share it. The SPI backend can run alongside
+the Pi's analog headphone audio.
+
+From the checkout, grant the service user access:
 
 ```console
 sudo groupadd --system --force gpio
@@ -68,110 +85,309 @@ sudo usermod -aG gpio,spi,audio pi
 sudo cp deploy/udev/70-lightning-gpio-spi.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo loginctl enable-linger pi
+sudo reboot
 ```
 
-Reboot after boot settings/group changes so the lingering user manager receives
-the new supplementary groups. Check `id pi`, `gpioinfo`, and permissions on
-`/dev/gpiochip0` and `/dev/spidev0.0`. On a Pi 4 the selected gpiochip must expose
-BCM offsets 0..27; set `pins.chip` if the device enumeration differs.
+After reconnecting, return to the checkout and check:
 
-| Connection | BCM | Physical header pin | Details |
-|---|---:|---:|---|
-| LED data | 10 | 19 | SPI0 MOSI; data resistor, external strip power and common ground |
-| HC-SR501 OUT | 17 | 11 | Active-high 3.3 V signal; power sensor per its module rating, common ground |
-| Button | 27 | 13 | Normally-open button to GND; internal pull-up, active-low |
-| Relay module input | 23 | 16 | Active-high 3.3 V-compatible input |
-| Common Pi ground | — | 6, for example | Join LED, PIR and relay module logic grounds |
+```console
+cd ~/Workspace/lightning-simulator
+id
+ls -l /dev/gpiochip* /dev/spidev0.0
+gpioinfo
+```
 
-Only the configured trigger input is requested. Keep input/relay pins off SPI0
-(BCM7..11); configuration rejects collisions. LED power must feed both strips
-directly from the external 5 V / 10 A supply; never through the Pi header.
+The user needs read/write access to the GPIO chip and SPI device. On a Pi 4,
+`pins.chip` must identify the chip exposing BCM GPIO offsets 0..27; its default
+is `/dev/gpiochip0`. Change that setting if your device enumeration differs.
 
-Use a relay **module** with a documented 3.3 V-compatible, active-high input,
-an integrated coil transistor/driver and flyback protection, and an inactive
-hardware default. A 10 kohm pull-down at its control input can hold it inactive
-while GPIO is unowned; verify the module's own bias and power-up behavior. Never
-drive a bare relay coil from GPIO. Power the module according to its rating;
-its control input must not source 5 V into the Pi.
+## 3. Wire the hardware
 
-The relay contacts switch the Ghostlight supply directly:
+Disconnect all supplies before wiring. The three supply voltages have different
+jobs:
 
-- Separate regulated **12 V DC supply positive** → relay **COM**.
-- Relay **NO** (normally open) → spotlight positive (or splitter positive).
-- Spotlight negative → 12 V supply negative.
+| Supply | Powers | Ground connection |
+|---|---|---|
+| Pi's normal USB-C supply | Raspberry Pi | Pi GND is the signal ground below |
+| External 5 V / 10 A supply | Addressable lightning strips | Join negative to Pi GND and both strip grounds |
+| Regulated 3.3 V relay supply | The purchased 3 V/3.3 V relay module | Join negative to Pi GND and module logic ground |
+| Separate regulated 12 V DC supply | Ghostlight Mini spotlights, through relay contacts | Returns directly from the lights; no Pi ground connection needed |
 
-Verify barrel connector polarity against the light/supply markings. Keep 12 V
-off the Pi header, GPIO, relay logic terminals and 5 V addressable strip supply.
-The isolated contact circuit does not require joining its 12 V negative to Pi
-ground. The Teyleten B07XGZSYJV module's logic/coil supply is **3 V/3.3 V**, not
-12 V or the strip's 5 V. Use its marked terminals/jumper instructions and a supply
-rated for the coil current; GPIO23 drives only the input, never the coil supply.
+Keep the separate supply positives separate. LED and relay coil load current
+must not flow through GPIO pins. The 12 V supply connects only to the relay's
+**contact side** and the spotlights, never to its control/power header or the Pi.
+Power the Pi through USB-C; do not connect the external strip supply to the Pi's
+5 V header pins.
+
+### Pi header connections
+
+**Physical pin numbers are positions on the 40-pin header. BCM numbers are the
+GPIO numbers used in `config.toml`.** For example, BCM23 is physical pin 16,
+not physical pin 23. Locate pin 1 from the board marking and use the
+[official header pinout](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#gpio)
+to orient the connector.
+
+| Pi physical pin | BCM / signal | Connect to |
+|---:|---|---|
+| 19 | BCM10 / SPI0 MOSI | 330 ohm series resistor, then first strip **DIN** |
+| 13 | BCM27 | One terminal of the normally-open actor button |
+| 14 | GND | Other terminal of the actor button |
+| 16 | BCM23 | Relay control input, marked **IN** or signal |
+| 6 | GND | Common ground junction: strip supply negative, strip grounds, relay logic ground and 3.3 V relay supply negative |
+| 11, optional | BCM17 | HC-SR501 PIR **OUT**, only when using motion mode |
+
+The application enables the button's internal pull-up; a press connects BCM27
+to ground. Use the switch contacts of an illuminated button; its lamp terminals
+are a separate circuit. Toggle and momentary modes use the same button wiring.
+Only the configured input is requested. Leave PIR disconnected for button modes.
+BCM7..11 belong to SPI0 and cannot be assigned to the button, PIR or relay.
+
+### Addressable lightning strips: 5 V power, data in series
+
+```text
+Pi physical 19 / BCM10 -- 330 ohm -- DIN [strip 1] DOUT -- DIN [strip 2]
+
+5 V supply + -- fused feed ---------------- +5 V strip 1
+           +-- separate fused feed -------- +5 V strip 2
+5 V supply - ------------------------------ GND strip 1
+           +------------------------------- GND strip 2
+           +------------------------------- Pi physical 6 / GND
+```
+
+Follow the strip's printed arrows: data goes into **DIN**, then from the first
+strip's **DOUT** into the second strip's **DIN**. Do not connect both DINs to the
+Pi in parallel. The software treats them as one chain of 120 pixels. Supply each
+strip directly with wire and fuse sized for its load; the header carries only
+the data signal and ground reference. No strip clock connection is needed.
+
+Keep the data cable short with a nearby ground return. Place the 330 ohm resistor
+near the first DIN and a 1000 uF capacitor rated at least 10 V across the strip's
+5 V/GND input, observing capacitor polarity. These follow
+[Adafruit's pixel wiring guidance](https://learn.adafruit.com/adafruit-neopixel-uberguide/best-practices).
+
+The diagram uses direct 3.3 V data from the Pi. Whether this is reliable depends
+on the strip's input threshold and wiring. If a 5 V logic buffer is needed, use
+a 74AHCT125 between BCM10 and the resistor/DIN: power VCC (pin 14) from strip 5 V,
+GND (7) from common ground, /1OE (1) to ground, 1A (2) to BCM10, and 1Y (3) to the
+resistor. Add 0.1 uF across VCC/GND at the chip, tie unused /OE pins (4, 10, 13)
+high and unused inputs (5, 9, 12) low; leave unused outputs open. These are
+**chip pin numbers**, not Pi header positions; confirm your package against the
+[74AHCT125 datasheet](https://cdn-shop.adafruit.com/datasheets/74AHC125.pdf).
+
+### Relay control side: 3.3 V
+
+The purchased [Teyleten B07XGZSYJV relay module](https://www.amazon.com/dp/B07XGZSYJV)
+is a **3 V/3.3 V, active-high** module with an integrated driver. Supply it with
+regulated 3.3 V rated for the board's coil current. Use the printed terminal
+labels, rather than assuming a left-to-right connector order:
+
+| Relay control-side terminal | Connection |
+|---|---|
+| **IN** / signal | Pi BCM23, physical pin 16 |
+| **GND** / **DC-** | Common Pi ground and 3.3 V relay supply negative |
+| **VCC** / **DC+** | Regulated 3.3 V relay supply positive |
+
+If the board exposes separate logic and coil power terminals, use its supplied
+jumper instructions for a shared **3.3 V** board supply; both supply inputs must
+receive their rated voltage. Confirm the labels on your board before powering
+it. The jumper concerns the relay board's logic/coil power; it never connects to
+the 12 V contact circuit. Do not power this 3.3 V board from 5 V or 12 V, and do
+not drive a bare relay coil from GPIO. Keep the module's integrated driver in use.
+
+Fit a 10 kohm pull-down between **IN** and module **GND** to request the inactive
+state when the Pi GPIO is unowned. Verify that the relay stays released during
+Pi startup, shutdown and power loss with the relay supply still powered.
+
+### Relay contact side: switch the 12 V spotlights
+
+```text
+12 V supply + -- fuse -- relay COM
+                        relay NO -------- spotlight + (or splitter +)
+12 V supply - --------------------------- spotlight - (or splitter -)
+                        relay NC -------- leave unconnected
+```
+
+**COM** is the moving contact; **NO** is normally open and closes when the relay
+is active. Use **COM/NO**, so the spotlights are off when the relay is released.
+Leave **NC** unused. COM is not the module's logic ground. The control header
+and switched contacts are separate circuits.
 
 The [Ghostlight Mini specifications](https://www.halloweenfxprops.com/ghostlight-mini-12-volt-mini-spotlight/)
-list 12 V and 16 mA per light; size the supply for the connected count with margin.
-Use COM/NO so lights are off with the relay inactive. PicoSTORM is no longer used.
+list **12 V DC and 16 mA per light**. For multiple lights, connect them in
+parallel using a suitable splitter after the relay; size the supply, fuse and
+wiring for the combined load. Confirm barrel connector polarity from the
+light/supply markings before attaching wires. The lights' negative returns to
+the 12 V supply negative; it does not need to join Pi ground. PicoSTORM is no
+longer part of the wiring.
 
-Start with `lights.enabled=false`. Verify inactive boot behavior, then enable
-`[lights] enabled=true` for the bounded relay test. Replace any old `[prop]`
-configuration table with `[lights]`. Select `trigger.mode="toggle"` or
-`trigger.mode="momentary"` (`hold` remains an alias) for the actor button.
-Releases and toggle-off presses never cancel lightning/thunder. The spotlights
-flash with the full-strip peak, then adopt the current held/toggled state
-immediately after the last flash. If turned off during the sequence, the
-remaining flashes still run, and the spotlights finish off.
+### Optional motion sensor
 
-Software commands the relay immediately after sending the full-white SPI frame.
-A mechanical relay adds operating/release delay; verify alignment and clean
-switching at the shortest configured flash/gap times on the actual hardware.
-There is no PWM or dimming through the relay. A suitable DC MOSFET switch can
-use the same active-high output if faster switching is needed later.
+For `trigger.mode="motion"`, connect HC-SR501 OUT to BCM17 (physical 11), GND
+to common Pi ground, and VCC to the voltage specified for your sensor board.
+The output presented to BCM17 must be 3.3 V-compatible. Motion mode ignores
+activation during its configured warmup and requires an inactive level before
+arming. A detection starts one sequence; further detections while busy do not
+queue another.
 
-## Wired audio (default)
+## 4. Configure the actor button and lights
 
-Connect the Pi 4's 3.5 mm headphone jack to the AUX/line input of your powered
-speakers. Keep the speakers powered from their own supply. In
-`/boot/firmware/config.txt`, enable onboard audio with `dtparam=audio=on` in an
-applicable section, and reboot if you changed it. SPI LED output can operate
-alongside onboard analog audio; see the [driver's SPI notes](https://github.com/jgarff/rpi_ws281x#limitations).
+Edit `~/.config/lightning-simulator/config.toml`. Update these existing tables
+rather than adding duplicate tables:
 
-As `pi`, start the headless audio stack:
+```toml
+[trigger]
+mode = "toggle" # Or "momentary"; "hold" is an alias for momentary
+warmup_seconds = 60.0 # Used only for motion mode
+debounce_ms = 50.0
+
+[pins]
+chip = "/dev/gpiochip0"
+led = 10
+pir = 17
+button = 27
+relay = 23
+
+[lights]
+enabled = false # Set true after checking the relay wiring and inactive state
+```
+
+Set `leds.count` to the total number of addressable pixels and `leds.color_order`
+to your strip's order (default `GRB`). `leds.brightness` ranges from 0 to 255.
+Keep the rest of the example config, including its `[effect]` and `[audio]` tables.
+
+| Mode | Actor action | Spotlight state after the last flash |
+|---|---|---|
+| `toggle` | First press starts lightning and latches lights on. Next press turns the latch off. Release has no effect. | On while latched; next press turns off. |
+| `momentary` / `hold` | Press starts lightning. Hold to keep the lights on afterward. | On while held; release turns off. |
+
+In both modes, button changes **never interrupt lightning or thunder**. During
+the sequence, the spotlights stay off for the dim trail, switch on with each
+full-strip flash and go off in the gaps. After the final flash, they immediately
+adopt the current held/latch state without waiting for thunder. If the actor
+already released or toggled off, the remaining flashes still play and the
+spotlights finish off. Busy presses change this desired state but do not restart
+or queue a lightning sequence. Each process start clears the toggle latch and
+requires the button to be released before arming.
+
+The relay command follows the full-white LED frame. Its mechanical contacts
+add operating/release delay; check alignment at the shortest configured flash
+and gap times. This output switches lights on/off and does not dim them.
+
+## 5. Set up wired audio
+
+Connect the Pi 4's 3.5 mm headphone jack to the powered speakers' AUX/line input.
+Power the speakers from their own supply. As `pi`, start the audio services:
 
 ```console
 systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service
 ```
 
-Configure the application:
+In the existing `[audio]` table:
 
 ```toml
 [audio]
+enabled = true
 output = "wired"
 device = ""
+background = "resource:background_storm.mp3"
+thunder = "resource:lightning_strike.wav"
 ```
 
-The empty device setting auto-detects the Pi's `bcm2835 Headphones` sink,
-including when an HDMI display is connected. Background and thunder are mixed
-directly into that output. Wired mode needs neither Bluetooth nor the
-`lightning_mix` virtual sink. The app does not change your desktop's default
-audio output.
+An empty `device` auto-selects the Pi's `bcm2835 Headphones` sink, including with
+HDMI connected. Background and thunder mix into that output. For a USB audio
+adapter or another wired output, set `device` to its exact sink name from:
 
-For another wired output, set `audio.device` to its exact name from
-`pactl list short sinks`. On the commissioning Pi, the jack's name was
-`alsa_output.platform-fe00b840.mailbox.stereo-fallback`; names can differ between
-installations, so automatic detection is preferred. `wpctl status` and `aplay -l`
-also help identify devices. Confirm the output is unmuted and its volume is
-audible; `doctor` reports muted wired output. The configured application volumes
-and the powered speakers' own volume also apply.
+```console
+pactl list short sinks
+wpctl status
+```
 
-`component-test audio --duration 12` plays background and one thunder recording,
-then stops. A wired output outage or audio-server failure is logged while
-lighting continues. Commands remain bounded, recovery retries every five seconds
-by default, and unavailable thunder is dropped. Reinitializing a lost audio
-device/server restarts the background stream; ordinary triggers and button changes
-never restart it.
+Unmute the selected output and set its volume plus the speaker's own volume.
+`doctor` reports a muted wired sink. The app does not change the desktop default
+output. Wired mode needs no Bluetooth pairing or virtual sink.
 
-## Optional Bluetooth and persistent audio sink
+To use custom recordings, replace `background` and/or `thunder` with absolute
+paths, `~/` paths or paths relative to the config file's directory. For example,
+`background="~/audio/rain.mp3"`. Background loops continuously; thunder plays
+alongside it when triggered. Restart the application after changing audio files.
+Set `audio.enabled=false` if using no sound.
 
-For Bluetooth mode, install its optional system dependencies:
+## 6. Check components and run the controller
+
+Keep the service stopped while running these commands from the checkout:
+
+```console
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml doctor
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test input --duration 20
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test leds --duration 5
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test audio --duration 12
+```
+
+`doctor` is read-only. The input test logs presses/releases; the LED test runs
+three strikes and clears the strips; the audio test plays background and one
+thunder. Each component test opens only its selected hardware. A successful
+software check still requires observing the actual light and audio output.
+
+After verifying relay wiring and inactive behavior, set `lights.enabled=true`
+in the config and run the relay test. It holds the spotlights on for two seconds,
+then releases the relay:
+
+```console
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test relay --duration 2
+```
+
+Run the full controller in the foreground:
+
+```console
+.venv/bin/lightning-simulator --config ~/.config/lightning-simulator/config.toml
+```
+
+Release the button once after startup, then press to trigger. Confirm the trail,
+full flashes, spotlight timing, final steady-light state and button-off behavior.
+Ctrl-C stops the foreground app and clears its outputs. For effect adjustments,
+see [config.example.toml](../config.example.toml): `travel_seconds` sets the trail
+time, `direction` selects the starting end, `flash_min`/`flash_max` set full-flash
+durations, and `gap_min`/`gap_max` set pauses between strikes.
+
+## 7. Start automatically at boot
+
+Stop the foreground app first. Install the user unit as `pi`:
+
+```console
+mkdir -p ~/.config/systemd/user
+cp lightning_simulation.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now lightning_simulation.service
+systemctl --user status lightning_simulation.service
+journalctl --user -u lightning_simulation.service -f
+```
+
+Linger, enabled in step 2, starts the user manager without an interactive login.
+The unit runs `.venv/bin/lightning-simulator` with the config in
+`~/.config/lightning-simulator/config.toml`. If your checkout is elsewhere, edit
+both paths in the copied unit before running `daemon-reload`.
+
+After config edits:
+
+```console
+systemctl --user restart lightning_simulation.service
+```
+
+Before component tests or rewiring:
+
+```console
+systemctl --user stop lightning_simulation.service
+```
+
+SIGTERM clears LEDs, stops thunder and releases the relay before closing device
+requests. Failures restart the service after five seconds. A restart does not
+restore the toggle latch. Reboot once and confirm the service starts, the outputs
+are initially inactive and the actor button works after release. The relay's
+hardware pull-down provides the inactive request while the process is absent.
+
+## Optional Bluetooth instead of wired audio
+
+Install and enable Bluetooth:
 
 ```console
 sudo apt install bluez libspa-0.2-bluetooth
@@ -179,34 +395,20 @@ sudo usermod -aG bluetooth pi
 sudo systemctl enable --now bluetooth.service
 ```
 
-Reboot after group changes so the lingering user manager receives them. Select
-Bluetooth explicitly in TOML, including when upgrading an older installation
-that previously used Bluetooth:
-
-```toml
-[audio]
-output = "bluetooth"
-speaker_address = "AA:BB:CC:DD:EE:FF"
-sink = "lightning_mix"
-```
-
-Use a dedicated `pi` PipeWire/WirePlumber user session, with lingering enabled.
-WirePlumber's [headless Bluetooth guidance](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html)
-allows Bluetooth devices without an active login using
-`monitor.bluez.seat-monitoring = disabled`. The included fragment is for
-WirePlumber **0.5** and permits A2DP roles. Do not install old 0.4 Lua snippets.
-
-As `pi`:
+As `pi`, install the supplied PipeWire/WirePlumber configuration:
 
 ```console
 mkdir -p ~/.config/pipewire/pipewire-pulse.conf.d ~/.config/wireplumber/wireplumber.conf.d
-cp deploy/pipewire-pulse.conf.d/30-lightning-mix.conf ~/.config/pipewire/pipewire-pulse.conf.d/
+cp deploy/pipewire-pulse.conf.d/30-lightning-mix.conf ~/.config/pipewire-pulse.conf.d/
 cp deploy/wireplumber.conf.d/51-lightning-bluetooth.conf ~/.config/wireplumber/wireplumber.conf.d/
-systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service
 systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service
 ```
 
-Pair and trust your speaker once, using its real address in place of the example:
+The WirePlumber fragment targets version 0.5 and enables headless A2DP operation
+using [the documented seat-monitoring setting](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html).
+Reboot after adding the group so the lingering user manager receives it.
+
+Pair the speaker once, substituting its address:
 
 ```console
 bluetoothctl
@@ -221,73 +423,17 @@ scan off
 quit
 ```
 
-Set `audio.speaker_address` in TOML to that address. Verify an A2DP output with
-`wpctl status` and `pactl --format=json list sinks`. Speaker model and address
-are commissioning settings; A2DP support is assumed. Pairing is an operator step;
-the service only reconnects a previously paired/trusted speaker.
+Update the existing `[audio]` table:
 
-The [PipeWire Pulse startup configuration](https://docs.pipewire.org/page_man_pipewire-pulse_conf_5.html)
-loads a persistent [null sink](https://docs.pipewire.org/page_pulse_module_null_sink.html)
-named `lightning_mix`, even while the speaker is missing. pygame streams background
-to that sink and uses reserved channel 0 for thunder. The application attaches
-one [loopback](https://docs.pipewire.org/page_pulse_module_loopback.html) from the
-sink monitor to the matching Bluetooth A2DP sink, replacing stale loopbacks after
-reconnection. It never changes the desktop's default output. If you rename the
-sink, change both TOML and the drop-in and restart pipewire-pulse.
-
-Connection checks retry every five seconds, with each external command bounded
-to three seconds by default. Audio failures are logged while inputs and lighting
-continue. Unavailable thunder is dropped; disconnect stops the active thunder
-channel, and reconnect does not replay it. Background keeps streaming silently
-through an ordinary Bluetooth outage and reconnect resumes the current position.
-A complete PipeWire server failure can require reinitializing the mixer and
-restarting background; this is logged. Bluetooth latency affects perceived
-flash/thunder timing; tune the speaker and recording at commissioning.
-
-## Bounded tests and service
-
-As `pi`, from the checkout:
-
-```console
-uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml doctor
-uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test input --duration 20
-uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test leds --duration 5
-uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test relay --duration 2
-uv run --locked --extra pi --no-dev lightning-simulator --config ~/.config/lightning-simulator/config.toml component-test audio --duration 20
+```toml
+output = "bluetooth"
+speaker_address = "AA:BB:CC:DD:EE:FF"
+sink = "lightning_mix"
 ```
 
-The LED test defaults to three strikes. Each grows a dim path from the first LED
-to the last, flashes the full strip at maximum configured brightness when it
-reaches the bottom, then goes dark. Set `effect.direction="reverse"` to start at
-the last LED instead. `effect.travel_seconds` controls descent time;
-`effect.leader_brightness` controls the dim path; `effect.bolt_width` controls how
-many pixels are added per growth step. `flash_min` / `flash_max` control the bright
-hold, and `gap_min` / `gap_max` control the following dark pause.
-The command clears LEDs on completion or interruption; its duration is an upper
-bound, so increase it when previewing a slower sequence. See the
-[effect configuration](../config.example.toml) for all settings.
-
-The relay test requires `lights.enabled=true`. Each command opens only its selected
-component and has a 120-second maximum. The audio test streams background and
-plays one thunder when a route becomes available. Ctrl-C/SIGTERM runs cleanup.
-`doctor` is read-only; a successful doctor cannot prove visual/audio/electrical
-correctness. Its boot-setting check verifies text presence; verify effective
-settings after reboot, for example `vcgencmd get_config int` if available.
-
-After the spike and component commissioning, install the **user** unit as `pi`:
-
-```console
-mkdir -p ~/.config/systemd/user
-cp lightning_simulation.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now lightning_simulation.service
-journalctl --user -u lightning_simulation.service -f
-```
-
-The unit runs one `.venv` application process, with no root LED daemon. Linger
-starts the user manager at boot without a login. SIGTERM clears LEDs, stops
-thunder, releases the relay and closes GPIO requests before exit. Initialization
-failures clean every device already opened, and a service failure restarts after
-five seconds. The relay's hardware inactive default remains essential while the
-process is absent. Complete [commissioning.md](commissioning.md), including an
-unattended reboot, before enabling spotlight control for use.
+Restart the application. The supplied config creates the persistent
+`lightning_mix` sink; the app connects it to the paired speaker and retries lost
+connections. Background resumes at its current position after an ordinary
+speaker outage; unavailable thunder is dropped rather than queued. A complete
+audio-server failure can restart background playback. Bluetooth latency affects
+flash/thunder timing. These files and pairing are needed only for Bluetooth mode.

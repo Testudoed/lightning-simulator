@@ -31,7 +31,6 @@ dev = ["pytest>=8.3,<10", "ruff>=0.11,<1"]
 
 [project.scripts]
 lightning-simulator = "lightning_simulator.cli:lightning_simulator"
-lightning-spi-spike = "lightning_simulator.spi_spike:main"
 
 [tool.hatch.version]
 source = "vcs"

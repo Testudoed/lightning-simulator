@@ -4,10 +4,8 @@ Debian 13 Trixie, Python 3.13 and uv. One unprivileged application controls 120
 SPI LEDs, streams background storm audio, mixes the supplied thunder recording,
 and optionally switches 12 V Ghostlight spotlights through a relay module.
 
-**Start with the [standalone LED compatibility spike](docs/led-spike.md).** Test
-BCM10 direct 3.3 V data with the existing 5 V / 10 A LED supply before accepting
-production wiring. A 74AHCT125 is a comparison fallback if signaling remains
-suspect. No target-Pi electrical or visual acceptance has been performed here.
+Follow the [deployment guide](docs/deployment.md) for installation, Pi boot
+settings, wiring, audio and automatic startup.
 
 ```console
 uv sync
@@ -46,7 +44,7 @@ Enable the installed relay with `[lights] enabled = true` in TOML, and set
 section is replaced by `[lights]`; remove it when upgrading. PicoSTORM forwarding
 has been removed. Keep `pins.relay = 23` for the existing GPIO wiring.
 The spotlight's **12 V supply is separate from the strip's 5 V supply**; see the
-[relay wiring](docs/deployment.md#gpio-spi-access-and-wiring).
+[relay wiring](docs/deployment.md#3-wire-the-hardware).
 
 Each lightning strike **grows a dim, continuously lit path from top to bottom**.
 When the path reaches the bottom, the whole strip flashes at full configured
@@ -84,8 +82,7 @@ Preview one three-strike sequence on the Pi without a trigger or audio setup:
 ```
 
 The duration is a maximum: the command finishes when the sequence ends and clears
-the LEDs. Increase it when testing slower travel or longer gaps. The standalone
-SPI compatibility spike keeps its diagnostic patterns and full-strip flashes.
+the LEDs. Increase it when testing slower travel or longer gaps.
 
 Copy [config.example.toml](config.example.toml) and use the global `--config`
 option **before** a subcommand:
@@ -130,14 +127,13 @@ can select another wired output, such as a USB audio adapter. Use
 even when an HDMI output is available.
 
 Bluetooth remains optional. Set `audio.output="bluetooth"`, configure
-`audio.speaker_address`, and follow the [Bluetooth setup](docs/deployment.md#optional-bluetooth-and-persistent-audio-sink).
+`audio.speaker_address`, and follow the [Bluetooth setup](docs/deployment.md#optional-bluetooth-instead-of-wired-audio).
 That mode uses the persistent `lightning_mix` sink and reconnects a paired speaker.
 
 The [deployment guide](docs/deployment.md) covers the Pi, headless Bluetooth,
-user service, hardware wiring and bounded component tests. The
-[commissioning checklist](docs/commissioning.md) records acceptance results.
-Defaults are motion mode, wired audio, full configured LED brightness, 0.35
-background volume, 0.65 thunder volume and spotlight output **disabled**.
+user service, hardware wiring and bounded component tests. Defaults are motion
+mode, wired audio, full configured LED brightness, 0.35 background volume, 0.65
+thunder volume and spotlight output **disabled**.
 
 Development checks:
 

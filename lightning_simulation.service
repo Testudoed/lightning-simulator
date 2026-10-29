@@ -1,5 +1,5 @@
 [Unit]
-Description=Lightning simulator and PicoSTORM input controller
+Description=Lightning simulator and spotlight controller
 Wants=pipewire.service pipewire-pulse.service wireplumber.service
 After=pipewire.service pipewire-pulse.service wireplumber.service
 

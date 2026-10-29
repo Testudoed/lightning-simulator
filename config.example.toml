@@ -14,7 +14,7 @@ relay = 23 # physical 16, active-high 3.3 V compatible relay MODULE
 
 [leds]
 count = 120
-brightness = 255 # 0..255; use this same value for the compatibility spike
+brightness = 255 # 0..255
 color_order = "GRB"
 
 [effect]

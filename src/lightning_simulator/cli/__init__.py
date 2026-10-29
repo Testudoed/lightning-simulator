@@ -5,7 +5,6 @@ import json
 import logging
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
 import click
 
@@ -30,7 +29,7 @@ def execute(coro):
 @click.option("--verbose", is_flag=True)
 @click.pass_context
 def lightning_simulator(ctx, config, verbose):
-    """Run the configured controller, or select a commissioning command."""
+    """Run the configured controller, or select a setup command."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -83,29 +82,3 @@ def component(config, component, duration):
     from lightning_simulator.diagnostics import component_test
 
     execute(component_test(config, component, duration))
-
-
-@lightning_simulator.command("led-spike")
-@click.option("--duration", type=click.FloatRange(0, 3600), default=600, show_default=True)
-@click.option("--report", type=click.Path(path_type=Path), default="led-spike-report.json")
-@click.option("--wiring", type=click.Choice(["direct-3v3", "74AHCT125"]), default="direct-3v3")
-@click.option("--notes", default="")
-@click.option("--simulate", "simulated", is_flag=True)
-@click.pass_obj
-def led_spike(config, duration, report, wiring, notes, simulated):
-    """120-pixel SPI compatibility spike (colors, positions, flashes, CPU stress)."""
-    from lightning_simulator.spi_spike import spike
-
-    execute(
-        spike(
-            SimpleNamespace(
-                duration=duration,
-                report=report,
-                wiring=wiring,
-                notes=notes,
-                simulate=simulated,
-                brightness=config.leds.brightness,
-                color_order=config.leds.color_order,
-            )
-        )
-    )
