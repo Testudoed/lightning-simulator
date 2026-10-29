@@ -110,11 +110,12 @@ jobs:
 |---|---|---|
 | Pi's normal USB-C supply | Raspberry Pi | Pi GND is the signal ground below |
 | External 5 V / 10 A supply | Addressable lightning strips | Join negative to Pi GND and both strip grounds |
-| Regulated 3.3 V relay supply | The purchased 3 V/3.3 V relay module | Join negative to Pi GND and module logic ground |
+| Pi's 3.3 V power output, physical pin 1 | One purchased 3 V/3.3 V relay module; verify current margin as described below | Module GND connects to Pi GND |
 | Separate regulated 12 V DC supply | Ghostlight Mini spotlights, through relay contacts | Returns directly from the lights; no Pi ground connection needed |
 
 Keep the separate supply positives separate. LED and relay coil load current
-must not flow through GPIO pins. The 12 V supply connects only to the relay's
+must not flow through GPIO signal pins. The relay module receives power from
+the dedicated 3.3 V power pin, not BCM23. The 12 V supply connects only to the relay's
 **contact side** and the spotlights, never to its control/power header or the Pi.
 Power the Pi through USB-C; do not connect the external strip supply to the Pi's
 5 V header pins.
@@ -133,7 +134,8 @@ to orient the connector.
 | 13 | BCM27 | One terminal of the normally-open actor button |
 | 14 | GND | Other terminal of the actor button |
 | 16 | BCM23 | Relay control input, marked **IN** or signal |
-| 6 | GND | Common ground junction: strip supply negative, strip grounds, relay logic ground and 3.3 V relay supply negative |
+| 1 | 3.3 V power | Relay **VCC** / **DC+**; this is a power pin, not a programmable GPIO |
+| 6 | GND | Common ground junction: strip supply negative, strip grounds and relay logic ground |
 | 11, optional | BCM17 | HC-SR501 PIR **OUT**, only when using motion mode |
 
 The application enables the button's internal pull-up; a press connects BCM27
@@ -177,15 +179,34 @@ high and unused inputs (5, 9, 12) low; leave unused outputs open. These are
 ### Relay control side: 3.3 V
 
 The purchased [Teyleten B07XGZSYJV relay module](https://www.amazon.com/dp/B07XGZSYJV)
-is a **3 V/3.3 V, active-high** module with an integrated driver. Supply it with
-regulated 3.3 V rated for the board's coil current. Use the printed terminal
-labels, rather than assuming a left-to-right connector order:
+is a **3 V/3.3 V, active-high** module with an integrated driver. For the intended
+single-module setup, connect its VCC directly to the Pi's **3.3 V power pin**;
+this arrangement uses no separate relay supply or regulator. Verify the current
+margin under load as described below. Use the printed terminal labels, rather
+than assuming a left-to-right connector order:
 
 | Relay control-side terminal | Connection |
 |---|---|
 | **IN** / signal | Pi BCM23, physical pin 16 |
-| **GND** / **DC-** | Common Pi ground and 3.3 V relay supply negative |
-| **VCC** / **DC+** | Regulated 3.3 V relay supply positive |
+| **GND** / **DC-** | Pi GND, physical pin 6 |
+| **VCC** / **DC+** | Pi 3.3 V power, physical pin 1 |
+
+```text
+Pi physical 1  / 3.3 V power -------- relay VCC
+Pi physical 6  / GND ---------------- relay GND
+Pi physical 16 / BCM23 -------------- relay IN
+```
+
+The relay coil alone draws approximately 120 mA at its nominal 3 V, with module
+electronics drawing additional current; see the
+[Songle coil data](https://www.alldatasheet.net/html-pdf/1132027/SONGLERELAY/SRD-03VDC-SL-C/1713/2/SRD-03VDC-SL-C.html).
+GPIO signal-pin current limits are different from the power rail's capacity.
+Available 3.3 V current margin on this Pi has not been verified, so direct power
+is a setup to check under load, not a guaranteed current budget. Check that the
+3.3 V rail remains stable while the relay switches and the full application is
+running. If it sags, the relay chatters or the Pi becomes unstable, stop using
+direct power and provide a suitably rated regulated 3.3 V source. Do not assume
+this wiring can power multiple relay modules.
 
 If the board exposes separate logic and coil power terminals, use its supplied
 jumper instructions for a shared **3.3 V** board supply; both supply inputs must
@@ -196,7 +217,8 @@ not drive a bare relay coil from GPIO. Keep the module's integrated driver in us
 
 Fit a 10 kohm pull-down between **IN** and module **GND** to request the inactive
 state when the Pi GPIO is unowned. Verify that the relay stays released during
-Pi startup, shutdown and power loss with the relay supply still powered.
+Pi startup, shutdown and power loss. Check startup and shutdown even if the
+Pi's 3.3 V rail remains powered during those states.
 
 ### Relay contact side: switch the 12 V spotlights
 
